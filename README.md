@@ -501,3 +501,7 @@ diagnostics, output parsing, and the key write/update/delete actions.
 ## License
 
 [MIT](LICENSE)
+
+The SparkyFitness name and brand icon belong to the upstream SparkyFitness
+project; the icon is included only to identify this integration in Home
+Assistant and HACS.
