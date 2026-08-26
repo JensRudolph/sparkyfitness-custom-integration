@@ -111,6 +111,55 @@ def parse_logging_streak(text: str) -> int | None:
     return int(value) if value is not None else None
 
 
+def parse_goal_snapshot(text: str) -> dict[str, Any]:
+    """Project the structured current goal snapshot onto entity keys."""
+
+    payload = extract_json(text)
+    if not isinstance(payload, dict):
+        raise SparkyFitnessMcpError("Goal snapshot was not a JSON object")
+    return {
+        entity_key: payload.get(mcp_key)
+        for entity_key, mcp_key in {
+            "calorie_goal": "calories",
+            "protein_goal": "protein",
+            "carbs_goal": "carbs",
+            "fat_goal": "fat",
+            "water_goal": "water_goal_ml",
+        }.items()
+    }
+
+
+def parse_30_day_trends(text: str) -> dict[str, Any]:
+    """Project stable structured 30-day aggregates onto entity keys."""
+
+    payload = extract_json(text)
+    if not isinstance(payload, dict):
+        raise SparkyFitnessMcpError("30-day trends were not a JSON object")
+
+    sections: dict[str, dict[str, Any]] = {}
+    for section in ("food", "exercise", "mood", "sleep", "biometrics"):
+        value = payload.get(section)
+        sections[section] = value if isinstance(value, dict) else {}
+
+    food = sections["food"]
+    exercise = sections["exercise"]
+    mood = sections["mood"]
+    sleep = sections["sleep"]
+    biometrics = sections["biometrics"]
+    return {
+        "food_days_logged_30d": food.get("days_logged"),
+        "avg_daily_calories_30d": food.get("avg_daily_calories"),
+        "avg_daily_protein_30d": food.get("avg_daily_protein"),
+        "workouts_30d": exercise.get("total_workouts"),
+        "active_days_30d": exercise.get("active_days"),
+        "exercise_calories_30d": exercise.get("total_calories_burned"),
+        "avg_mood_30d": mood.get("avg_mood"),
+        "avg_sleep_duration_30d": sleep.get("avg_duration_hours"),
+        "avg_sleep_score_30d": sleep.get("avg_sleep_score"),
+        "weight_entries_30d": biometrics.get("weight_entries"),
+    }
+
+
 def parse_exercise_search(text: str) -> list[dict[str, str]]:
     """Extract names and UUIDs from the stable exercise-search result."""
 

@@ -15,7 +15,9 @@ from custom_components.sparkyfitness.const import (
     CONF_ENABLE_CHECKIN,
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
+    CONF_ENABLE_GOALS,
     CONF_ENABLE_NUTRITION,
+    CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
     CONF_VERIFY_SSL,
     DOMAIN,
@@ -180,6 +182,8 @@ async def test_options_flow(hass) -> None:
         CONF_ENABLE_EXERCISE: False,
         CONF_ENABLE_CHECKIN: True,
         CONF_ENABLE_ENGAGEMENT: False,
+        CONF_ENABLE_GOALS: True,
+        CONF_ENABLE_TRENDS: False,
     }
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], options

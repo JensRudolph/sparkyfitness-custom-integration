@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import homeassistant.helpers.config_validation as cv
@@ -18,9 +18,12 @@ from .const import (
     MEAL_TYPES,
     SERVICE_CREATE_EXERCISE,
     SERVICE_CREATE_WORKOUT_PRESET,
+    SERVICE_DELETE_EXERCISE_ENTRY,
+    SERVICE_DELETE_FOOD_ENTRY,
     SERVICE_LOG_BIOMETRICS,
     SERVICE_LOG_CUSTOM_METRIC,
     SERVICE_LOG_EXERCISE,
+    SERVICE_LOG_FASTING_WINDOW,
     SERVICE_LOG_FOOD,
     SERVICE_LOG_HABIT,
     SERVICE_LOG_MOOD,
@@ -30,6 +33,9 @@ from .const import (
     SERVICE_LOG_WORKOUT_PRESET,
     SERVICE_REFRESH,
     SERVICE_SET_GOALS,
+    SERVICE_START_FASTING,
+    SERVICE_UPDATE_EXERCISE_ENTRY,
+    SERVICE_UPDATE_FOOD_ENTRY,
     SET_TYPES,
 )
 from .exceptions import (
@@ -40,6 +46,13 @@ from .exceptions import (
 
 ENTRY_FIELD = {vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string}
 DATE_FIELD = {vol.Optional("entry_date"): cv.date}
+UUID_VALUE = vol.All(
+    cv.string,
+    vol.Match(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+        r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    ),
+)
 
 LOG_WEIGHT_SCHEMA = vol.Schema(
     {
@@ -118,6 +131,29 @@ LOG_FOOD_SCHEMA = vol.Schema(
         vol.Optional("meal_type_id"): cv.string,
     }
 )
+UPDATE_FOOD_ENTRY_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Required("entry_id"): UUID_VALUE,
+        vol.Optional("entry_type", default="food_entry"): vol.In(
+            ("food_entry", "food_entry_meal")
+        ),
+        vol.Optional("quantity"): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional("unit"): cv.string,
+        vol.Optional("meal_type"): vol.In(MEAL_TYPES),
+        vol.Optional("meal_type_id"): UUID_VALUE,
+    }
+)
+DELETE_FOOD_ENTRY_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Required("entry_id"): UUID_VALUE,
+        vol.Optional("entry_type", default="food_entry"): vol.In(
+            ("food_entry", "food_entry_meal")
+        ),
+        vol.Required("confirm"): vol.Equal(True),
+    }
+)
 EXERCISE_SET_SCHEMA = vol.Schema(
     {
         vol.Optional("reps"): cv.positive_int,
@@ -145,6 +181,30 @@ LOG_EXERCISE_SCHEMA = vol.Schema(
         ),
         vol.Optional("steps"): cv.positive_int,
         vol.Optional("sets"): vol.All(cv.ensure_list, [EXERCISE_SET_SCHEMA]),
+    }
+)
+UPDATE_EXERCISE_ENTRY_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        **DATE_FIELD,
+        vol.Required("entry_id"): UUID_VALUE,
+        vol.Optional("entry_time"): cv.string,
+        vol.Optional("notes"): cv.string,
+        vol.Optional("duration_minutes"): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional("calories_burned"): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional("distance"): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional("avg_heart_rate"): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=300)
+        ),
+        vol.Optional("steps"): cv.positive_int,
+        vol.Optional("sets"): vol.All(cv.ensure_list, [EXERCISE_SET_SCHEMA]),
+    }
+)
+DELETE_EXERCISE_ENTRY_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Required("entry_id"): UUID_VALUE,
+        vol.Required("confirm"): vol.Equal(True),
     }
 )
 CREATE_EXERCISE_SCHEMA = vol.Schema(
@@ -194,6 +254,24 @@ LOG_HABIT_SCHEMA = vol.Schema(
         vol.Required("completed"): cv.boolean,
     }
 )
+START_FASTING_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Optional("start_time"): cv.datetime,
+        vol.Optional("fasting_type"): cv.string,
+    }
+)
+LOG_FASTING_WINDOW_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Required("start_time"): cv.datetime,
+        vol.Required("end_time"): cv.datetime,
+        vol.Optional("fasting_status", default="COMPLETED"): vol.In(
+            ("COMPLETED", "CANCELLED")
+        ),
+        vol.Optional("fasting_type"): cv.string,
+    }
+)
 
 
 def async_register_services(hass: HomeAssistant) -> None:
@@ -212,10 +290,12 @@ def async_register_services(hass: HomeAssistant) -> None:
 
         try:
             if service == SERVICE_REFRESH:
+                runtime.coordinator.invalidate_sections("goals", "trends")
                 await runtime.coordinator.async_request_refresh()
                 return {"result": "refreshed"}
 
-            entry_date = _date_string(data.pop("entry_date", None))
+            entry_date_value = data.pop("entry_date", None)
+            entry_date = _date_string(entry_date_value)
             if service == SERVICE_LOG_WEIGHT:
                 result = await client.async_log_weight(
                     data["weight"], data.get("unit", "kg"), entry_date
@@ -289,11 +369,40 @@ def async_register_services(hass: HomeAssistant) -> None:
                 if data.get("meal_type_id"):
                     arguments["meal_type_id"] = data["meal_type_id"]
                 result = await client.async_log_food(**arguments)
+            elif service == SERVICE_UPDATE_FOOD_ENTRY:
+                entry_id = data.pop("entry_id")
+                if not any(
+                    key in data
+                    for key in ("quantity", "unit", "meal_type", "meal_type_id")
+                ):
+                    raise ServiceValidationError(
+                        "Provide quantity, unit, meal_type, or meal_type_id"
+                    )
+                result = await client.async_update_food_entry(entry_id, **data)
+            elif service == SERVICE_DELETE_FOOD_ENTRY:
+                entry_id = data.pop("entry_id")
+                data.pop("confirm")
+                result = await client.async_delete_food_entry(
+                    entry_id, data["entry_type"]
+                )
             elif service == SERVICE_LOG_EXERCISE:
                 exercise = data.pop("exercise")
                 result = await client.async_log_exercise(
                     exercise_name=exercise, entry_date=entry_date, **data
                 )
+            elif service == SERVICE_UPDATE_EXERCISE_ENTRY:
+                entry_id = data.pop("entry_id")
+                if entry_date_value is not None:
+                    data["entry_date"] = entry_date
+                if not data:
+                    raise ServiceValidationError(
+                        "At least one exercise entry field is required"
+                    )
+                result = await client.async_update_exercise_entry(entry_id, **data)
+            elif service == SERVICE_DELETE_EXERCISE_ENTRY:
+                entry_id = data.pop("entry_id")
+                data.pop("confirm")
+                result = await client.async_delete_exercise_entry(entry_id)
             elif service == SERVICE_CREATE_EXERCISE:
                 result = await client.async_create_exercise(**data)
             elif service == SERVICE_CREATE_WORKOUT_PRESET:
@@ -315,9 +424,43 @@ def async_register_services(hass: HomeAssistant) -> None:
                 result = await client.async_log_habit(
                     data["habit_id"], entry_date, data["completed"]
                 )
+            elif service == SERVICE_START_FASTING:
+                result = await client.async_log_fasting(
+                    _timestamp_string(data.get("start_time")),
+                    fasting_status="ACTIVE",
+                    fasting_type=data.get("fasting_type"),
+                )
+            elif service == SERVICE_LOG_FASTING_WINDOW:
+                start_time = data["start_time"]
+                end_time = data["end_time"]
+                if dt_util.as_utc(_as_aware(end_time)) <= dt_util.as_utc(
+                    _as_aware(start_time)
+                ):
+                    raise ServiceValidationError("end_time must be after start_time")
+                result = await client.async_log_fasting(
+                    _timestamp_string(start_time),
+                    end_time=_timestamp_string(end_time),
+                    fasting_status=data["fasting_status"],
+                    fasting_type=data.get("fasting_type"),
+                )
             else:
                 raise ServiceValidationError(f"Unknown SparkyFitness action: {service}")
 
+            if service == SERVICE_SET_GOALS:
+                runtime.coordinator.invalidate_sections("goals")
+            elif service in {
+                SERVICE_LOG_WEIGHT,
+                SERVICE_LOG_BIOMETRICS,
+                SERVICE_LOG_MOOD,
+                SERVICE_LOG_SLEEP,
+                SERVICE_LOG_FOOD,
+                SERVICE_UPDATE_FOOD_ENTRY,
+                SERVICE_DELETE_FOOD_ENTRY,
+                SERVICE_LOG_EXERCISE,
+                SERVICE_UPDATE_EXERCISE_ENTRY,
+                SERVICE_DELETE_EXERCISE_ENTRY,
+            }:
+                runtime.coordinator.invalidate_sections("trends")
             await runtime.coordinator.async_request_refresh()
             return {"result": result}
         except SparkyFitnessAuthenticationError as err:
@@ -337,12 +480,18 @@ def async_register_services(hass: HomeAssistant) -> None:
         SERVICE_LOG_SLEEP: LOG_SLEEP_SCHEMA,
         SERVICE_LOG_CUSTOM_METRIC: LOG_CUSTOM_METRIC_SCHEMA,
         SERVICE_LOG_FOOD: LOG_FOOD_SCHEMA,
+        SERVICE_UPDATE_FOOD_ENTRY: UPDATE_FOOD_ENTRY_SCHEMA,
+        SERVICE_DELETE_FOOD_ENTRY: DELETE_FOOD_ENTRY_SCHEMA,
         SERVICE_LOG_EXERCISE: LOG_EXERCISE_SCHEMA,
+        SERVICE_UPDATE_EXERCISE_ENTRY: UPDATE_EXERCISE_ENTRY_SCHEMA,
+        SERVICE_DELETE_EXERCISE_ENTRY: DELETE_EXERCISE_ENTRY_SCHEMA,
         SERVICE_CREATE_EXERCISE: CREATE_EXERCISE_SCHEMA,
         SERVICE_CREATE_WORKOUT_PRESET: CREATE_WORKOUT_PRESET_SCHEMA,
         SERVICE_LOG_WORKOUT_PRESET: LOG_WORKOUT_PRESET_SCHEMA,
         SERVICE_SET_GOALS: SET_GOALS_SCHEMA,
         SERVICE_LOG_HABIT: LOG_HABIT_SCHEMA,
+        SERVICE_START_FASTING: START_FASTING_SCHEMA,
+        SERVICE_LOG_FASTING_WINDOW: LOG_FASTING_WINDOW_SCHEMA,
     }
     for service, schema in registrations.items():
         hass.services.async_register(
@@ -396,3 +545,17 @@ def _water_to_ml(amount: float, unit: str) -> float:
     elif unit == "fl_oz":
         amount *= 29.5735295625
     return round(amount, 2)
+
+
+def _timestamp_string(value: datetime | None) -> str:
+    """Render an action timestamp, defaulting to Home Assistant's current time."""
+
+    return _as_aware(value or dt_util.now()).isoformat()
+
+
+def _as_aware(value: datetime) -> datetime:
+    """Interpret selector timestamps without offsets in Home Assistant's time zone."""
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    return value

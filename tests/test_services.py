@@ -11,12 +11,20 @@ from homeassistant.helpers.service import async_get_all_descriptions
 from custom_components.sparkyfitness import async_setup
 from custom_components.sparkyfitness.const import (
     DOMAIN,
+    SERVICE_DELETE_EXERCISE_ENTRY,
+    SERVICE_DELETE_FOOD_ENTRY,
     SERVICE_LOG_CUSTOM_METRIC,
     SERVICE_LOG_EXERCISE,
+    SERVICE_LOG_FASTING_WINDOW,
     SERVICE_LOG_MOOD,
     SERVICE_LOG_WATER,
     SERVICE_LOG_WEIGHT,
+    SERVICE_START_FASTING,
+    SERVICE_UPDATE_EXERCISE_ENTRY,
+    SERVICE_UPDATE_FOOD_ENTRY,
 )
+
+ENTRY_ID = "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture
@@ -30,8 +38,14 @@ async def service_runtime(hass):
     client.async_log_mood = AsyncMock(return_value="mood logged")
     client.async_log_custom_metric = AsyncMock(return_value="metric logged")
     client.async_log_exercise = AsyncMock(return_value="exercise logged")
+    client.async_update_food_entry = AsyncMock(return_value="food updated")
+    client.async_delete_food_entry = AsyncMock(return_value="food deleted")
+    client.async_update_exercise_entry = AsyncMock(return_value="exercise updated")
+    client.async_delete_exercise_entry = AsyncMock(return_value="exercise deleted")
+    client.async_log_fasting = AsyncMock(return_value="fasting logged")
     coordinator = MagicMock()
     coordinator.async_request_refresh = AsyncMock()
+    coordinator.invalidate_sections = MagicMock()
     entry = MagicMock()
     entry.runtime_data = SimpleNamespace(client=client, coordinator=coordinator)
     with patch(
@@ -158,3 +172,96 @@ async def test_log_exercise_with_structured_sets(hass, service_runtime) -> None:
         sets=sets,
     )
     coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_update_and_delete_food_entry_by_id(hass, service_runtime) -> None:
+    """Food mutations require and preserve one exact diary entry UUID."""
+
+    client, coordinator = service_runtime
+    await _call(
+        hass,
+        SERVICE_UPDATE_FOOD_ENTRY,
+        {"entry_id": ENTRY_ID, "quantity": 1.5, "meal_type": "dinner"},
+    )
+    client.async_update_food_entry.assert_awaited_once_with(
+        ENTRY_ID,
+        entry_type="food_entry",
+        quantity=1.5,
+        meal_type="dinner",
+    )
+
+    await _call(
+        hass,
+        SERVICE_DELETE_FOOD_ENTRY,
+        {"entry_id": ENTRY_ID, "entry_type": "food_entry", "confirm": True},
+    )
+    client.async_delete_food_entry.assert_awaited_once_with(ENTRY_ID, "food_entry")
+    assert coordinator.invalidate_sections.call_args_list[-1].args == ("trends",)
+
+
+async def test_update_and_delete_exercise_entry_by_id(hass, service_runtime) -> None:
+    """Exercise updates forward only supplied fields and deletes require confirmation."""
+
+    client, coordinator = service_runtime
+    replacement_sets = [{"reps": 8, "weight": 82.5, "rpe": 9}]
+    await _call(
+        hass,
+        SERVICE_UPDATE_EXERCISE_ENTRY,
+        {"entry_id": ENTRY_ID, "notes": "Corrected", "sets": replacement_sets},
+    )
+    client.async_update_exercise_entry.assert_awaited_once_with(
+        ENTRY_ID,
+        notes="Corrected",
+        sets=[
+            {
+                "reps": 8,
+                "weight": 82.5,
+                "rpe": 9.0,
+                "set_type": "Working Set",
+            }
+        ],
+    )
+
+    await _call(
+        hass,
+        SERVICE_DELETE_EXERCISE_ENTRY,
+        {"entry_id": ENTRY_ID, "confirm": True},
+    )
+    client.async_delete_exercise_entry.assert_awaited_once_with(ENTRY_ID)
+    assert coordinator.invalidate_sections.call_args_list[-1].args == ("trends",)
+
+
+async def test_start_and_log_completed_fasting_window(hass, service_runtime) -> None:
+    """Fasting actions map only to the current MCP log_fasting operation."""
+
+    client, coordinator = service_runtime
+    await _call(
+        hass,
+        SERVICE_START_FASTING,
+        {
+            "start_time": "2026-08-26T18:00:00+00:00",
+            "fasting_type": "16:8",
+        },
+    )
+    client.async_log_fasting.assert_awaited_with(
+        "2026-08-26T18:00:00+00:00",
+        fasting_status="ACTIVE",
+        fasting_type="16:8",
+    )
+
+    await _call(
+        hass,
+        SERVICE_LOG_FASTING_WINDOW,
+        {
+            "start_time": "2026-08-25T18:00:00+00:00",
+            "end_time": "2026-08-26T10:00:00+00:00",
+            "fasting_status": "COMPLETED",
+        },
+    )
+    client.async_log_fasting.assert_awaited_with(
+        "2026-08-25T18:00:00+00:00",
+        end_time="2026-08-26T10:00:00+00:00",
+        fasting_status="COMPLETED",
+        fasting_type=None,
+    )
+    assert coordinator.async_request_refresh.await_count == 2

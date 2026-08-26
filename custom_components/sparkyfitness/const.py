@@ -7,7 +7,7 @@ from typing import Final
 
 DOMAIN: Final = "sparkyfitness"
 NAME: Final = "SparkyFitness"
-INTEGRATION_VERSION: Final = "0.1.0"
+INTEGRATION_VERSION: Final = "0.2.0"
 
 PLATFORMS: Final = ["sensor", "binary_sensor"]
 
@@ -18,6 +18,8 @@ CONF_ENABLE_NUTRITION: Final = "enable_nutrition"
 CONF_ENABLE_EXERCISE: Final = "enable_exercise"
 CONF_ENABLE_CHECKIN: Final = "enable_checkin"
 CONF_ENABLE_ENGAGEMENT: Final = "enable_engagement"
+CONF_ENABLE_GOALS: Final = "enable_goals"
+CONF_ENABLE_TRENDS: Final = "enable_trends"
 CONF_CONFIG_ENTRY_ID: Final = "config_entry_id"
 
 DEFAULT_VERIFY_SSL: Final = True
@@ -42,6 +44,8 @@ TOOL_CHECKIN: Final = "sparky_manage_checkin"
 TOOL_FOOD: Final = "sparky_manage_food"
 TOOL_EXERCISE: Final = "sparky_manage_exercise"
 TOOL_STREAK: Final = "sparky_get_logging_streak"
+TOOL_GOAL_SNAPSHOT: Final = "sparky_get_goal_snapshot"
+TOOL_30_DAY_TRENDS: Final = "sparky_get_30_day_trends"
 TOOL_PROFILE: Final = "sparky_manage_profile"
 TOOL_GOALS: Final = "sparky_manage_goals"
 TOOL_HABITS: Final = "sparky_manage_habits"
@@ -60,6 +64,12 @@ SERVICE_CREATE_WORKOUT_PRESET: Final = "create_workout_preset"
 SERVICE_LOG_WORKOUT_PRESET: Final = "log_workout_preset"
 SERVICE_SET_GOALS: Final = "set_goals"
 SERVICE_LOG_HABIT: Final = "log_habit"
+SERVICE_UPDATE_FOOD_ENTRY: Final = "update_food_entry"
+SERVICE_DELETE_FOOD_ENTRY: Final = "delete_food_entry"
+SERVICE_UPDATE_EXERCISE_ENTRY: Final = "update_exercise_entry"
+SERVICE_DELETE_EXERCISE_ENTRY: Final = "delete_exercise_entry"
+SERVICE_START_FASTING: Final = "start_fasting"
+SERVICE_LOG_FASTING_WINDOW: Final = "log_fasting_window"
 
 SET_TYPES: Final = ("Working Set", "Warmup", "Drop Set", "Failure")
 MEAL_TYPES: Final = ("breakfast", "lunch", "dinner", "snacks")

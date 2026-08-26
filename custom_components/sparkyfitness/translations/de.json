@@ -36,7 +36,9 @@
           "enable_nutrition": "Ernährungssensoren aktivieren",
           "enable_exercise": "Trainingssensoren aktivieren",
           "enable_checkin": "Check-in-Sensoren aktivieren",
-          "enable_engagement": "Engagement-Sensoren aktivieren"
+          "enable_engagement": "Engagement-Sensoren aktivieren",
+          "enable_goals": "Zielsensoren aktivieren",
+          "enable_trends": "30-Tage-Trendsensoren aktivieren"
         }
       }
     }
@@ -47,7 +49,22 @@
       "protein_today": {"name": "Protein heute"}, "carbs_today": {"name": "Kohlenhydrate heute"}, "fat_today": {"name": "Fett heute"},
       "water_today": {"name": "Wasser heute"}, "sleep_duration": {"name": "Schlafdauer"}, "sleep_score": {"name": "Schlafwert"},
       "mood": {"name": "Stimmung"}, "body_fat": {"name": "Körperfett"}, "exercise_count_today": {"name": "Trainingseinträge heute"},
-      "logging_streak": {"name": "Protokollierungsserie"}
+      "logging_streak": {"name": "Protokollierungsserie"},
+      "calorie_goal": {"name": "Kalorienziel"},
+      "protein_goal": {"name": "Proteinziel"},
+      "carbs_goal": {"name": "Kohlenhydratziel"},
+      "fat_goal": {"name": "Fettziel"},
+      "water_goal": {"name": "Wasserziel"},
+      "food_days_logged_30d": {"name": "Tage mit Ernährungseinträgen (30 Tage)"},
+      "avg_daily_calories_30d": {"name": "Durchschnittliche Tageskalorien (30 Tage)"},
+      "avg_daily_protein_30d": {"name": "Durchschnittliches Tagesprotein (30 Tage)"},
+      "workouts_30d": {"name": "Trainingseinheiten (30 Tage)"},
+      "active_days_30d": {"name": "Aktive Tage (30 Tage)"},
+      "exercise_calories_30d": {"name": "Trainingskalorien (30 Tage)"},
+      "avg_mood_30d": {"name": "Durchschnittliche Stimmung (30 Tage)"},
+      "avg_sleep_duration_30d": {"name": "Durchschnittliche Schlafdauer (30 Tage)"},
+      "avg_sleep_score_30d": {"name": "Durchschnittlicher Schlafwert (30 Tage)"},
+      "weight_entries_30d": {"name": "Gewichtseinträge (30 Tage)"}
     },
     "binary_sensor": {"fasting": {"name": "Fasten"}}
   }

@@ -18,9 +18,11 @@ from .const import (
     MCP_PROTOCOL_VERSION,
     NAME,
     REQUEST_TIMEOUT_SECONDS,
+    TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
     TOOL_EXERCISE,
     TOOL_FOOD,
+    TOOL_GOAL_SNAPSHOT,
     TOOL_GOALS,
     TOOL_HABITS,
     TOOL_HEALTH_SUMMARY,
@@ -245,6 +247,16 @@ class SparkyFitnessMcpClient:
 
         return str(await self.async_call_tool(TOOL_STREAK))
 
+    async def async_get_goal_snapshot(self) -> str:
+        """Return the goals active today."""
+
+        return str(await self.async_call_tool(TOOL_GOAL_SNAPSHOT))
+
+    async def async_get_30_day_trends(self) -> str:
+        """Return the current structured 30-day aggregates."""
+
+        return str(await self.async_call_tool(TOOL_30_DAY_TRENDS))
+
     async def async_log_weight(self, weight: float, unit: str, entry_date: str) -> Any:
         """Log weight through the check-in MCP tool."""
 
@@ -338,6 +350,25 @@ class SparkyFitnessMcpClient:
 
         return await self.async_call_tool(TOOL_FOOD, {"action": "log_food", **values})
 
+    async def async_update_food_entry(self, entry_id: str, **values: Any) -> Any:
+        """Update one food diary entry by its stable MCP identifier."""
+
+        return await self.async_call_tool(
+            TOOL_FOOD, {"action": "update_entry", "entry_id": entry_id, **values}
+        )
+
+    async def async_delete_food_entry(self, entry_id: str, entry_type: str) -> Any:
+        """Delete one food diary entry by its stable MCP identifier."""
+
+        return await self.async_call_tool(
+            TOOL_FOOD,
+            {
+                "action": "delete_entry",
+                "entry_id": entry_id,
+                "entry_type": entry_type,
+            },
+        )
+
     async def async_log_exercise(self, **values: Any) -> Any:
         """Log exercise data, including structured set data."""
 
@@ -350,6 +381,22 @@ class SparkyFitnessMcpClient:
 
         return await self.async_call_tool(
             TOOL_EXERCISE, {"action": "create_exercise", **values}
+        )
+
+    async def async_update_exercise_entry(self, entry_id: str, **values: Any) -> Any:
+        """Update one exercise diary entry by its stable MCP identifier."""
+
+        return await self.async_call_tool(
+            TOOL_EXERCISE,
+            {"action": "update_exercise_entry", "entry_id": entry_id, **values},
+        )
+
+    async def async_delete_exercise_entry(self, entry_id: str) -> Any:
+        """Delete one exercise diary entry by its stable MCP identifier."""
+
+        return await self.async_call_tool(
+            TOOL_EXERCISE,
+            {"action": "delete_exercise_entry", "entry_id": entry_id},
         )
 
     async def async_create_workout_preset(
@@ -399,6 +446,27 @@ class SparkyFitnessMcpClient:
         """Set goals from an effective date."""
 
         return await self.async_call_tool(TOOL_GOALS, {"action": "set_goals", **values})
+
+    async def async_log_fasting(
+        self,
+        start_time: str,
+        *,
+        end_time: str | None = None,
+        fasting_status: str = "ACTIVE",
+        fasting_type: str | None = None,
+    ) -> Any:
+        """Log a new active fast or a complete fasting window."""
+
+        arguments: dict[str, Any] = {
+            "action": "log_fasting",
+            "start_time": start_time,
+            "fasting_status": fasting_status,
+        }
+        if end_time is not None:
+            arguments["end_time"] = end_time
+        if fasting_type is not None:
+            arguments["fasting_type"] = fasting_type
+        return await self.async_call_tool(TOOL_CHECKIN, arguments)
 
     async def async_log_habit(
         self, habit_id: str, entry_date: str, completed: bool

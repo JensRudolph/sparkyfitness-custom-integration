@@ -47,7 +47,9 @@
           "enable_nutrition": "Enable nutrition sensors",
           "enable_exercise": "Enable exercise sensors",
           "enable_checkin": "Enable check-in sensors",
-          "enable_engagement": "Enable engagement sensors"
+          "enable_engagement": "Enable engagement sensors",
+          "enable_goals": "Enable goal sensors",
+          "enable_trends": "Enable 30-day trend sensors"
         }
       }
     }
@@ -66,7 +68,22 @@
       "mood": {"name": "Mood"},
       "body_fat": {"name": "Body fat"},
       "exercise_count_today": {"name": "Exercise count today"},
-      "logging_streak": {"name": "Logging streak"}
+      "logging_streak": {"name": "Logging streak"},
+      "calorie_goal": {"name": "Calorie goal"},
+      "protein_goal": {"name": "Protein goal"},
+      "carbs_goal": {"name": "Carbohydrate goal"},
+      "fat_goal": {"name": "Fat goal"},
+      "water_goal": {"name": "Water goal"},
+      "food_days_logged_30d": {"name": "Food days logged (30 days)"},
+      "avg_daily_calories_30d": {"name": "Average daily calories (30 days)"},
+      "avg_daily_protein_30d": {"name": "Average daily protein (30 days)"},
+      "workouts_30d": {"name": "Workouts (30 days)"},
+      "active_days_30d": {"name": "Active days (30 days)"},
+      "exercise_calories_30d": {"name": "Exercise calories (30 days)"},
+      "avg_mood_30d": {"name": "Average mood (30 days)"},
+      "avg_sleep_duration_30d": {"name": "Average sleep duration (30 days)"},
+      "avg_sleep_score_30d": {"name": "Average sleep score (30 days)"},
+      "weight_entries_30d": {"name": "Weight entries (30 days)"}
     },
     "binary_sensor": {
       "fasting": {"name": "Fasting"}

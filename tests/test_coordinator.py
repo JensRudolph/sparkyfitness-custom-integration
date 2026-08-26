@@ -10,7 +10,9 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sparkyfitness.const import (
     DOMAIN,
+    TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
+    TOOL_GOAL_SNAPSHOT,
     TOOL_HEALTH_SUMMARY,
     TOOL_STREAK,
 )
@@ -126,3 +128,42 @@ async def test_recovery_after_failure(hass) -> None:
     recovered = await coordinator._async_update_data()
     assert recovered.values["logging_streak"] == 4
     assert coordinator.last_error_class is None
+
+
+async def test_goal_and_trend_sections_are_parsed_and_throttled(hass) -> None:
+    """Slow aggregate tools are cached between normal five-minute updates."""
+
+    client = _client()
+    client.tools.update(
+        {
+            TOOL_GOAL_SNAPSHOT: object(),
+            TOOL_30_DAY_TRENDS: object(),
+        }
+    )
+    client.async_get_goal_snapshot = AsyncMock(
+        return_value='{"calories":2100,"protein":150,"carbs":220,"fat":70,'
+        '"water_goal_ml":2500}'
+    )
+    client.async_get_30_day_trends = AsyncMock(
+        return_value='{"food":{"days_logged":28,"avg_daily_calories":1950,'
+        '"avg_daily_protein":135},"exercise":{"total_workouts":14,'
+        '"active_days":12,"total_calories_burned":4200},'
+        '"mood":{"avg_mood":7.8},"sleep":{"avg_duration_hours":7.4,'
+        '"avg_sleep_score":88},"biometrics":{"weight_entries":9}}'
+    )
+    coordinator = SparkyFitnessCoordinator(hass, _entry(hass), client)
+
+    first = await coordinator._async_update_data()
+    coordinator.data = first
+    assert first.values["calorie_goal"] == 2100
+    assert first.values["workouts_30d"] == 14
+    assert first.values["avg_sleep_duration_30d"] == 7.4
+
+    await coordinator._async_update_data()
+    client.async_get_goal_snapshot.assert_awaited_once()
+    client.async_get_30_day_trends.assert_awaited_once()
+
+    coordinator.invalidate_sections("goals")
+    await coordinator._async_update_data()
+    assert client.async_get_goal_snapshot.await_count == 2
+    client.async_get_30_day_trends.assert_awaited_once()

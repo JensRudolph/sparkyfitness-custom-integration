@@ -17,11 +17,15 @@ from .const import (
     CONF_ENABLE_CHECKIN,
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
+    CONF_ENABLE_GOALS,
     CONF_ENABLE_NUTRITION,
+    CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
+    TOOL_GOAL_SNAPSHOT,
     TOOL_HEALTH_SUMMARY,
     TOOL_STREAK,
 )
@@ -31,14 +35,18 @@ from .exceptions import (
     SparkyFitnessError,
 )
 from .extract import (
+    parse_30_day_trends,
     parse_checkin_diary,
     parse_fasting_status,
+    parse_goal_snapshot,
     parse_health_summary,
     parse_logging_streak,
 )
 from .models import SparkyFitnessData
 
 _LOGGER = logging.getLogger(__name__)
+_GOAL_REFRESH_INTERVAL = timedelta(minutes=30)
+_TRENDS_REFRESH_INTERVAL = timedelta(hours=1)
 
 
 class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
@@ -58,6 +66,7 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         self.config_entry = entry
         self.last_successful_refresh: datetime | None = None
         self.last_error_class: str | None = None
+        self._section_updated_at: dict[str, datetime] = {}
         interval = int(entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL))
         super().__init__(
             hass,
@@ -73,10 +82,23 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
 
         return bool(self.config_entry.options.get(option, True))
 
+    def invalidate_sections(self, *sections: str) -> None:
+        """Force slow-changing sections to refresh on the next update."""
+
+        for section in sections:
+            self._section_updated_at.pop(section, None)
+
+    def _section_due(self, section: str, interval: timedelta, now: datetime) -> bool:
+        """Return whether a deliberately throttled section should run."""
+
+        last_update = self._section_updated_at.get(section)
+        return last_update is None or now - last_update >= interval
+
     async def _async_update_data(self) -> SparkyFitnessData:
         """Fetch enabled sections while isolating optional failures."""
 
         calls: dict[str, Any] = {}
+        now = datetime.now(UTC)
         if TOOL_HEALTH_SUMMARY in self.client.tools and any(
             self.feature_enabled(option)
             for option in (
@@ -97,6 +119,18 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
             and TOOL_STREAK in self.client.tools
         ):
             calls["streak"] = self.client.async_get_logging_streak()
+        if (
+            self.feature_enabled(CONF_ENABLE_GOALS)
+            and TOOL_GOAL_SNAPSHOT in self.client.tools
+            and self._section_due("goals", _GOAL_REFRESH_INTERVAL, now)
+        ):
+            calls["goals"] = self.client.async_get_goal_snapshot()
+        if (
+            self.feature_enabled(CONF_ENABLE_TRENDS)
+            and TOOL_30_DAY_TRENDS in self.client.tools
+            and self._section_due("trends", _TRENDS_REFRESH_INTERVAL, now)
+        ):
+            calls["trends"] = self.client.async_get_30_day_trends()
 
         previous = self.data or SparkyFitnessData()
         values = dict(previous.values)
@@ -104,7 +138,7 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         section_errors: dict[str, str] = {}
 
         if not calls:
-            self.last_successful_refresh = datetime.now(UTC)
+            self.last_successful_refresh = now
             self.last_error_class = None
             return SparkyFitnessData(values=values, fasting=fasting)
 
@@ -136,6 +170,12 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
                     fasting = parse_fasting_status(str(result))
                 elif section == "streak":
                     values["logging_streak"] = parse_logging_streak(str(result))
+                elif section == "goals":
+                    values.update(parse_goal_snapshot(str(result)))
+                    self._section_updated_at["goals"] = now
+                elif section == "trends":
+                    values.update(parse_30_day_trends(str(result)))
+                    self._section_updated_at["trends"] = now
             except SparkyFitnessError as err:
                 section_errors[section] = type(err).__name__
                 self.last_error_class = type(err).__name__
@@ -148,7 +188,7 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
                 error = "Unable to communicate with SparkyFitness MCP"
             raise UpdateFailed(error)
 
-        self.last_successful_refresh = datetime.now(UTC)
+        self.last_successful_refresh = now
         if not section_errors:
             self.last_error_class = None
         return SparkyFitnessData(

@@ -27,7 +27,9 @@ from .const import (
     CONF_ENABLE_CHECKIN,
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
+    CONF_ENABLE_GOALS,
     CONF_ENABLE_NUTRITION,
+    CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
     CONF_VERIFY_SSL,
     DEFAULT_UPDATE_INTERVAL,
@@ -229,6 +231,14 @@ class SparkyFitnessOptionsFlow(config_entries.OptionsFlow):
                     vol.Required(
                         CONF_ENABLE_ENGAGEMENT,
                         default=options.get(CONF_ENABLE_ENGAGEMENT, True),
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_ENABLE_GOALS,
+                        default=options.get(CONF_ENABLE_GOALS, True),
+                    ): BooleanSelector(),
+                    vol.Required(
+                        CONF_ENABLE_TRENDS,
+                        default=options.get(CONF_ENABLE_TRENDS, True),
                     ): BooleanSelector(),
                 }
             ),

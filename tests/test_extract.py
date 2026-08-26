@@ -1,9 +1,11 @@
 """Tests for MCP result extraction."""
 
 from custom_components.sparkyfitness.extract import (
+    parse_30_day_trends,
     parse_checkin_diary,
     parse_exercise_search,
     parse_fasting_status,
+    parse_goal_snapshot,
     parse_health_summary,
     parse_logging_streak,
 )
@@ -81,3 +83,37 @@ def test_parse_fasting_and_exercise_search() -> None:
             "id": "11111111-1111-1111-1111-111111111111",
         }
     ]
+
+
+def test_parse_goal_and_30_day_trend_json() -> None:
+    """Structured goal and trend tools project only stable scalar values."""
+
+    assert parse_goal_snapshot(
+        '{"calories":2100,"protein":150,"carbs":220,"fat":70,'
+        '"water_goal_ml":2500,"sodium":2000}'
+    ) == {
+        "calorie_goal": 2100,
+        "protein_goal": 150,
+        "carbs_goal": 220,
+        "fat_goal": 70,
+        "water_goal": 2500,
+    }
+    assert parse_30_day_trends(
+        '{"period":{"days":30},"food":{"days_logged":28,'
+        '"avg_daily_calories":1950,"avg_daily_protein":135},'
+        '"exercise":{"total_workouts":14,"active_days":12,'
+        '"total_calories_burned":4200},"mood":{"avg_mood":7.8},'
+        '"sleep":{"avg_duration_hours":7.4,"avg_sleep_score":88},'
+        '"biometrics":{"weight_entries":9,"weights":[]}}'
+    ) == {
+        "food_days_logged_30d": 28,
+        "avg_daily_calories_30d": 1950,
+        "avg_daily_protein_30d": 135,
+        "workouts_30d": 14,
+        "active_days_30d": 12,
+        "exercise_calories_30d": 4200,
+        "avg_mood_30d": 7.8,
+        "avg_sleep_duration_30d": 7.4,
+        "avg_sleep_score_30d": 88,
+        "weight_entries_30d": 9,
+    }

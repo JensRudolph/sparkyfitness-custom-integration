@@ -188,6 +188,53 @@ log_food:
       selector: {text: {}}
     entry_date: *entry_date
 
+update_food_entry:
+  name: Update food diary entry
+  description: Update quantity, unit, or meal assignment for one exact diary entry ID.
+  fields:
+    config_entry_id: *config_entry
+    entry_id:
+      name: Entry ID
+      description: UUID shown by the SparkyFitness food diary MCP output.
+      required: true
+      selector: {text: {}}
+    entry_type:
+      name: Entry type
+      default: food_entry
+      selector: {select: {options: [food_entry, food_entry_meal]}}
+    quantity:
+      name: Quantity
+      selector: {number: {min: 0, step: 0.01, mode: box}}
+    unit:
+      name: Unit
+      selector: {text: {}}
+    meal_type:
+      name: New built-in meal type
+      selector: {select: {options: [breakfast, lunch, dinner, snacks]}}
+    meal_type_id:
+      name: New custom meal type ID
+      description: Takes precedence over the built-in meal type.
+      selector: {text: {}}
+
+delete_food_entry:
+  name: Delete food diary entry
+  description: Permanently delete one exact food or meal-template diary entry. This cannot be undone.
+  fields:
+    config_entry_id: *config_entry
+    entry_id:
+      name: Entry ID
+      description: UUID shown by the SparkyFitness food diary MCP output.
+      required: true
+      selector: {text: {}}
+    entry_type:
+      name: Entry type
+      default: food_entry
+      selector: {select: {options: [food_entry, food_entry_meal]}}
+    confirm:
+      name: Confirm permanent deletion
+      required: true
+      selector: {boolean: {}}
+
 log_exercise:
   name: Log exercise
   description: Log an exercise and optional structured set/cardio data.
@@ -224,6 +271,58 @@ log_exercise:
       description: List of objects with reps, weight, duration, distance, rest_time, set_type, rpe, and notes.
       selector: {object: {}}
     entry_date: *entry_date
+
+update_exercise_entry:
+  name: Update exercise diary entry
+  description: Update only the supplied fields of one exact exercise diary entry ID. Supplied sets replace all existing sets.
+  fields:
+    config_entry_id: *config_entry
+    entry_id:
+      name: Entry ID
+      description: UUID shown by the SparkyFitness exercise diary MCP output.
+      required: true
+      selector: {text: {}}
+    entry_date: *entry_date
+    entry_time:
+      name: Entry time
+      selector: {time: {}}
+    notes:
+      name: Notes
+      selector: {text: {multiline: true}}
+    duration_minutes:
+      name: Duration
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: min}}
+    calories_burned:
+      name: Calories burned
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: kcal}}
+    distance:
+      name: Distance
+      selector: {number: {min: 0, step: 0.01, mode: box}}
+    avg_heart_rate:
+      name: Average heart rate
+      selector: {number: {min: 0, max: 300, step: 1, mode: box, unit_of_measurement: bpm}}
+    steps:
+      name: Steps
+      selector: {number: {min: 0, step: 1, mode: box}}
+    sets:
+      name: Replacement sets
+      description: Complete replacement list using reps, weight, duration, distance, rest_time, set_type, rpe, and notes.
+      selector: {object: {}}
+
+delete_exercise_entry:
+  name: Delete exercise diary entry
+  description: Permanently delete one exact exercise diary entry. This cannot be undone.
+  fields:
+    config_entry_id: *config_entry
+    entry_id:
+      name: Entry ID
+      description: UUID shown by the SparkyFitness exercise diary MCP output.
+      required: true
+      selector: {text: {}}
+    confirm:
+      name: Confirm permanent deletion
+      required: true
+      selector: {boolean: {}}
 
 create_exercise:
   name: Create exercise
@@ -315,3 +414,38 @@ log_habit:
       required: true
       selector: {boolean: {}}
     entry_date: *entry_date
+
+start_fasting:
+  name: Start fasting
+  description: Create a new active fasting session through MCP. Defaults to the current Home Assistant time.
+  fields:
+    config_entry_id: *config_entry
+    start_time:
+      name: Start time
+      description: Optional ISO 8601 timestamp; defaults to now.
+      selector: {datetime: {}}
+    fasting_type:
+      name: Fasting type
+      description: Optional label such as 16:8 or Intermittent.
+      selector: {text: {}}
+
+log_fasting_window:
+  name: Log fasting window
+  description: Create a completed or cancelled fasting record with an explicit start and end. This does not mutate an existing active fast.
+  fields:
+    config_entry_id: *config_entry
+    start_time:
+      name: Start time
+      required: true
+      selector: {datetime: {}}
+    end_time:
+      name: End time
+      required: true
+      selector: {datetime: {}}
+    fasting_status:
+      name: Status
+      default: COMPLETED
+      selector: {select: {options: [COMPLETED, CANCELLED]}}
+    fasting_type:
+      name: Fasting type
+      selector: {text: {}}

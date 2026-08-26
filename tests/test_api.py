@@ -14,6 +14,11 @@ from custom_components.sparkyfitness.api import (
     SparkyFitnessMcpClient,
     normalize_mcp_endpoint,
 )
+from custom_components.sparkyfitness.const import (
+    TOOL_CHECKIN,
+    TOOL_EXERCISE,
+    TOOL_FOOD,
+)
 from custom_components.sparkyfitness.exceptions import (
     SparkyFitnessAuthenticationError,
     SparkyFitnessConnectionError,
@@ -21,6 +26,9 @@ from custom_components.sparkyfitness.exceptions import (
     SparkyFitnessToolError,
     SparkyFitnessUnsupportedFeatureError,
 )
+from custom_components.sparkyfitness.models import McpTool
+
+ENTRY_ID = "11111111-1111-1111-1111-111111111111"
 
 
 class FakeResponse:
@@ -239,3 +247,42 @@ async def test_reconnect_after_disconnect() -> None:
     await client.async_disconnect()
     await client.async_list_tools()
     assert [request["method"] for request in session.requests].count("initialize") == 2
+
+
+async def test_extended_write_wrappers_use_current_mcp_actions() -> None:
+    """Update/delete/fasting wrappers preserve reviewed tool and action names."""
+
+    session = FakeSession(_success_route)
+    client = SparkyFitnessMcpClient(session, "https://example.com", "secret")
+    client._connected = True
+    client.tools = {
+        name: McpTool(name=name, description="", input_schema={})
+        for name in (TOOL_CHECKIN, TOOL_FOOD, TOOL_EXERCISE)
+    }
+
+    await client.async_update_food_entry(ENTRY_ID, quantity=1.5)
+    await client.async_delete_food_entry(ENTRY_ID, "food_entry")
+    await client.async_update_exercise_entry(ENTRY_ID, notes="Corrected")
+    await client.async_delete_exercise_entry(ENTRY_ID)
+    await client.async_log_fasting(
+        "2026-08-26T18:00:00+00:00",
+        end_time="2026-08-27T10:00:00+00:00",
+        fasting_status="COMPLETED",
+        fasting_type="16:8",
+    )
+
+    calls = [request["params"] for request in session.requests]
+    assert [call["name"] for call in calls] == [
+        TOOL_FOOD,
+        TOOL_FOOD,
+        TOOL_EXERCISE,
+        TOOL_EXERCISE,
+        TOOL_CHECKIN,
+    ]
+    assert [call["arguments"]["action"] for call in calls] == [
+        "update_entry",
+        "delete_entry",
+        "update_exercise_entry",
+        "delete_exercise_entry",
+        "log_fasting",
+    ]
