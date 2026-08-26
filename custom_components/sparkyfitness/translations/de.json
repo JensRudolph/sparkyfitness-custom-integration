@@ -5,8 +5,8 @@
       "user": {
         "title": "Mit SparkyFitness verbinden",
         "description": "Gib die SparkyFitness-Basis-URL oder den /mcp-Endpunkt und einen persönlichen API-Schlüssel ein.",
-        "data": {"url": "SparkyFitness-URL", "api_key": "API-Schlüssel", "verify_ssl": "TLS-Zertifikat prüfen"},
-        "data_description": {"verify_ssl": "Nur deaktivieren, wenn du das Sicherheitsrisiko eines ungeprüften Zertifikats verstehst."}
+        "data": {"url": "SparkyFitness-URL", "account_name": "Kontoname", "api_key": "API-Schlüssel", "verify_ssl": "TLS-Zertifikat prüfen"},
+        "data_description": {"account_name": "Optionale Bezeichnung zur Unterscheidung mehrerer API-Schlüssel auf demselben Server.", "verify_ssl": "Nur deaktivieren, wenn du das Sicherheitsrisiko eines ungeprüften Zertifikats verstehst."}
       },
       "reauth_confirm": {
         "title": "SparkyFitness erneut authentifizieren",
@@ -31,6 +31,7 @@
         "title": "SparkyFitness-Optionen",
         "description": "Ohne TLS-Prüfung können API-Schlüssel und Gesundheitsdaten abgefangen werden. Deaktivierte Funktionsgruppen werden nicht per MCP abgefragt.",
         "data": {
+          "account_name": "Kontoname",
           "update_interval": "Aktualisierungsintervall",
           "verify_ssl": "TLS-Zertifikat prüfen",
           "enable_nutrition": "Ernährungssensoren aktivieren",
@@ -38,7 +39,8 @@
           "enable_checkin": "Check-in-Sensoren aktivieren",
           "enable_engagement": "Engagement-Sensoren aktivieren",
           "enable_goals": "Zielsensoren aktivieren",
-          "enable_trends": "30-Tage-Trendsensoren aktivieren"
+          "enable_trends": "30-Tage-Trendsensoren aktivieren",
+          "enable_habits": "Gewohnheitssensoren aktivieren"
         }
       }
     }
@@ -55,6 +57,20 @@
       "carbs_goal": {"name": "Kohlenhydratziel"},
       "fat_goal": {"name": "Fettziel"},
       "water_goal": {"name": "Wasserziel"},
+      "calories_remaining": {"name": "Verbleibende Kalorien"},
+      "protein_remaining": {"name": "Verbleibendes Protein"},
+      "carbs_remaining": {"name": "Verbleibende Kohlenhydrate"},
+      "fat_remaining": {"name": "Verbleibendes Fett"},
+      "water_remaining": {"name": "Verbleibendes Wasser"},
+      "calories_progress": {"name": "Fortschritt Kalorienziel"},
+      "protein_progress": {"name": "Fortschritt Proteinziel"},
+      "carbs_progress": {"name": "Fortschritt Kohlenhydratziel"},
+      "fat_progress": {"name": "Fortschritt Fettziel"},
+      "water_progress": {"name": "Fortschritt Wasserziel"},
+      "fasting_elapsed": {"name": "Vergangene Fastenzeit"},
+      "fasting_target_end": {"name": "Geplantes Fastenende"},
+      "fasting_remaining": {"name": "Verbleibende Fastenzeit"},
+      "fasting_progress": {"name": "Fastenfortschritt"},
       "food_days_logged_30d": {"name": "Tage mit Ernährungseinträgen (30 Tage)"},
       "avg_daily_calories_30d": {"name": "Durchschnittliche Tageskalorien (30 Tage)"},
       "avg_daily_protein_30d": {"name": "Durchschnittliches Tagesprotein (30 Tage)"},
@@ -66,6 +82,6 @@
       "avg_sleep_score_30d": {"name": "Durchschnittlicher Schlafwert (30 Tage)"},
       "weight_entries_30d": {"name": "Gewichtseinträge (30 Tage)"}
     },
-    "binary_sensor": {"fasting": {"name": "Fasten"}}
+    "binary_sensor": {"fasting": {"name": "Fasten"}, "fasting_goal_reached": {"name": "Fastenziel erreicht"}}
   }
 }

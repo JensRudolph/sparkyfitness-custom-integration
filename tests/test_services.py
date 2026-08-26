@@ -13,12 +13,19 @@ from custom_components.sparkyfitness.const import (
     DOMAIN,
     SERVICE_DELETE_EXERCISE_ENTRY,
     SERVICE_DELETE_FOOD_ENTRY,
+    SERVICE_GET_HABIT_HISTORY,
+    SERVICE_LIST_EXERCISE_DIARY,
+    SERVICE_LIST_FOOD_DIARY,
+    SERVICE_LIST_HABITS,
+    SERVICE_LIST_WORKOUT_PRESETS,
     SERVICE_LOG_CUSTOM_METRIC,
     SERVICE_LOG_EXERCISE,
     SERVICE_LOG_FASTING_WINDOW,
     SERVICE_LOG_MOOD,
     SERVICE_LOG_WATER,
     SERVICE_LOG_WEIGHT,
+    SERVICE_SEARCH_EXERCISE,
+    SERVICE_SEARCH_FOOD,
     SERVICE_START_FASTING,
     SERVICE_UPDATE_EXERCISE_ENTRY,
     SERVICE_UPDATE_FOOD_ENTRY,
@@ -43,6 +50,21 @@ async def service_runtime(hass):
     client.async_update_exercise_entry = AsyncMock(return_value="exercise updated")
     client.async_delete_exercise_entry = AsyncMock(return_value="exercise deleted")
     client.async_log_fasting = AsyncMock(return_value="fasting logged")
+    client.async_list_food_diary = AsyncMock(
+        return_value='{"entries":[{"id":"food-entry"}]}'
+    )
+    client.async_search_food = AsyncMock(return_value='{"items":[]}')
+    client.async_list_exercise_diary = AsyncMock(return_value='{"entries":[]}')
+    client.async_search_exercise = AsyncMock(return_value='{"items":[]}')
+    client.async_list_workout_presets = AsyncMock(
+        return_value="# Workout Presets\n\nNo results found."
+    )
+    client.async_list_habits = AsyncMock(
+        return_value=f"# Available Habits\n\n**Walk**\n  ID: {ENTRY_ID}"
+    )
+    client.async_get_habit_history = AsyncMock(
+        return_value="# Habit History\n\n2026-08-26: ✅ Completed"
+    )
     coordinator = MagicMock()
     coordinator.async_request_refresh = AsyncMock()
     coordinator.invalidate_sections = MagicMock()
@@ -71,6 +93,56 @@ async def test_all_registered_actions_have_valid_descriptions(hass) -> None:
     await async_setup(hass, {})
     descriptions = await async_get_all_descriptions(hass)
     assert set(descriptions[DOMAIN]) == set(hass.services.async_services()[DOMAIN])
+
+
+async def test_read_actions_return_results_without_refreshing(
+    hass, service_runtime
+) -> None:
+    """Read-only mappings expose IDs transiently and never mutate coordinator data."""
+
+    client, coordinator = service_runtime
+    food_diary = await _call(hass, SERVICE_LIST_FOOD_DIARY, {"date": "2026-08-26"})
+    await _call(hass, SERVICE_SEARCH_FOOD, {"query": "Oats", "limit": 10})
+    await _call(
+        hass,
+        SERVICE_LIST_EXERCISE_DIARY,
+        {"start_date": "2026-08-25", "end_date": "2026-08-26"},
+    )
+    await _call(
+        hass,
+        SERVICE_SEARCH_EXERCISE,
+        {"query": "Press", "muscle_group": "Chest"},
+    )
+    await _call(hass, SERVICE_LIST_WORKOUT_PRESETS, {})
+    habits = await _call(hass, SERVICE_LIST_HABITS, {})
+    await _call(
+        hass,
+        SERVICE_GET_HABIT_HISTORY,
+        {
+            "habit_id": ENTRY_ID,
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-26",
+        },
+    )
+
+    assert food_diary == {"result": {"entries": [{"id": "food-entry"}]}}
+    assert habits["result"].startswith("# Available Habits")
+    client.async_list_food_diary.assert_awaited_once_with(date="2026-08-26")
+    client.async_search_food.assert_awaited_once_with("Oats", limit=10, offset=0)
+    client.async_list_exercise_diary.assert_awaited_once_with(
+        start_date="2026-08-25", end_date="2026-08-26"
+    )
+    client.async_search_exercise.assert_awaited_once_with(
+        "Press",
+        muscle_group="Chest",
+        equipment=None,
+        limit=20,
+        offset=0,
+    )
+    client.async_get_habit_history.assert_awaited_once_with(
+        ENTRY_ID, start_date="2026-08-01", end_date="2026-08-26"
+    )
+    coordinator.async_request_refresh.assert_not_awaited()
 
 
 async def test_log_weight(hass, service_runtime) -> None:

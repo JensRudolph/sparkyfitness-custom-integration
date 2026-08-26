@@ -37,6 +37,7 @@ from .const import (
     TOOL_STREAK,
 )
 from .entity import SparkyFitnessEntity
+from .fasting import fasting_metrics
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,6 +47,35 @@ class SparkyFitnessSensorDescription(SensorEntityDescription):
     required_tools: frozenset[str]
     feature_option: str
     value_fn: Callable[[dict[str, Any]], Any]
+    require_all_tools: bool = False
+    additional_feature_options: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, kw_only=True)
+class SparkyFitnessFastingSensorDescription(SensorEntityDescription):
+    """Describe a value calculated from the active fasting status."""
+
+    metric_key: str
+
+
+def _remaining(data: dict[str, Any], current_key: str, goal_key: str) -> Any:
+    """Return a non-negative remaining amount when both inputs exist."""
+
+    current = data.get(current_key)
+    goal = data.get(goal_key)
+    if current is None or goal is None:
+        return None
+    return round(max(0.0, float(goal) - float(current)), 2)
+
+
+def _progress(data: dict[str, Any], current_key: str, goal_key: str) -> Any:
+    """Return goal progress without capping values above 100 percent."""
+
+    current = data.get(current_key)
+    goal = data.get(goal_key)
+    if current is None or goal is None or float(goal) <= 0:
+        return None
+    return round(float(current) / float(goal) * 100, 1)
 
 
 SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
@@ -199,6 +229,90 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
         feature_option=CONF_ENABLE_GOALS,
         value_fn=lambda data: data.get("water_goal"),
     ),
+    *(
+        SparkyFitnessSensorDescription(
+            key=f"{key}_remaining",
+            translation_key=f"{key}_remaining",
+            icon=icon,
+            device_class=device_class,
+            native_unit_of_measurement=unit,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_registry_enabled_default=False,
+            required_tools=frozenset({TOOL_HEALTH_SUMMARY, TOOL_GOAL_SNAPSHOT}),
+            feature_option=CONF_ENABLE_GOALS,
+            additional_feature_options=frozenset({CONF_ENABLE_NUTRITION}),
+            require_all_tools=True,
+            value_fn=lambda data, current_key=current_key, goal_key=goal_key: (
+                _remaining(data, current_key, goal_key)
+            ),
+        )
+        for key, current_key, goal_key, icon, unit, device_class in (
+            (
+                "calories",
+                "calories_today",
+                "calorie_goal",
+                "mdi:fire",
+                UnitOfEnergy.KILO_CALORIE,
+                SensorDeviceClass.ENERGY,
+            ),
+            (
+                "protein",
+                "protein_today",
+                "protein_goal",
+                "mdi:food-drumstick",
+                UnitOfMass.GRAMS,
+                None,
+            ),
+            (
+                "carbs",
+                "carbs_today",
+                "carbs_goal",
+                "mdi:barley",
+                UnitOfMass.GRAMS,
+                None,
+            ),
+            (
+                "fat",
+                "fat_today",
+                "fat_goal",
+                "mdi:oil",
+                UnitOfMass.GRAMS,
+                None,
+            ),
+            (
+                "water",
+                "water_today",
+                "water_goal",
+                "mdi:cup-water",
+                UnitOfVolume.MILLILITERS,
+                None,
+            ),
+        )
+    ),
+    *(
+        SparkyFitnessSensorDescription(
+            key=f"{key}_progress",
+            translation_key=f"{key}_progress",
+            icon="mdi:progress-check",
+            native_unit_of_measurement=PERCENTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_registry_enabled_default=False,
+            required_tools=frozenset({TOOL_HEALTH_SUMMARY, TOOL_GOAL_SNAPSHOT}),
+            feature_option=CONF_ENABLE_GOALS,
+            additional_feature_options=frozenset({CONF_ENABLE_NUTRITION}),
+            require_all_tools=True,
+            value_fn=lambda data, current_key=current_key, goal_key=goal_key: _progress(
+                data, current_key, goal_key
+            ),
+        )
+        for key, current_key, goal_key in (
+            ("calories", "calories_today", "calorie_goal"),
+            ("protein", "protein_today", "protein_goal"),
+            ("carbs", "carbs_today", "carbs_goal"),
+            ("fat", "fat_today", "fat_goal"),
+            ("water", "water_today", "water_goal"),
+        )
+    ),
     SparkyFitnessSensorDescription(
         key="food_days_logged_30d",
         translation_key="food_days_logged_30d",
@@ -281,6 +395,42 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
     ),
 )
 
+FASTING_SENSORS: tuple[SparkyFitnessFastingSensorDescription, ...] = (
+    SparkyFitnessFastingSensorDescription(
+        key="fasting_elapsed",
+        translation_key="fasting_elapsed",
+        icon="mdi:timer-sand",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        state_class=SensorStateClass.MEASUREMENT,
+        metric_key="elapsed_seconds",
+    ),
+    SparkyFitnessFastingSensorDescription(
+        key="fasting_target_end",
+        translation_key="fasting_target_end",
+        icon="mdi:timer-check-outline",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        metric_key="target_end",
+    ),
+    SparkyFitnessFastingSensorDescription(
+        key="fasting_remaining",
+        translation_key="fasting_remaining",
+        icon="mdi:timer-outline",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        state_class=SensorStateClass.MEASUREMENT,
+        metric_key="remaining_seconds",
+    ),
+    SparkyFitnessFastingSensorDescription(
+        key="fasting_progress",
+        translation_key="fasting_progress",
+        icon="mdi:progress-clock",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        metric_key="progress",
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -294,9 +444,24 @@ async def async_setup_entry(
     async_add_entities(
         SparkyFitnessSensor(coordinator, description)
         for description in SENSORS
-        if description.required_tools.intersection(available_tools)
+        if (
+            description.required_tools.issubset(available_tools)
+            if description.require_all_tools
+            else bool(description.required_tools.intersection(available_tools))
+        )
         and coordinator.feature_enabled(description.feature_option)
+        and all(
+            coordinator.feature_enabled(option)
+            for option in description.additional_feature_options
+        )
     )
+    if TOOL_CHECKIN in available_tools and coordinator.feature_enabled(
+        CONF_ENABLE_CHECKIN
+    ):
+        async_add_entities(
+            SparkyFitnessFastingSensor(coordinator, description)
+            for description in FASTING_SENSORS
+        )
 
 
 class SparkyFitnessSensor(SparkyFitnessEntity, SensorEntity):
@@ -317,3 +482,25 @@ class SparkyFitnessSensor(SparkyFitnessEntity, SensorEntity):
         """Return the latest value without converting missing data to zero."""
 
         return self.entity_description.value_fn(self.coordinator.data.values)
+
+
+class SparkyFitnessFastingSensor(SparkyFitnessEntity, SensorEntity):
+    """Expose locally calculated metrics for the active fast."""
+
+    entity_description: SparkyFitnessFastingSensorDescription
+
+    def __init__(
+        self, coordinator, description: SparkyFitnessFastingSensorDescription
+    ) -> None:
+        """Initialize a fasting metric sensor."""
+
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def native_value(self) -> Any:
+        """Return a value only when it follows from the existing MCP status."""
+
+        return fasting_metrics(self.coordinator.data.fasting).get(
+            self.entity_description.metric_key
+        )

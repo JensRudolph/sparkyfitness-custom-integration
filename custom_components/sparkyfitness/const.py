@@ -7,11 +7,12 @@ from typing import Final
 
 DOMAIN: Final = "sparkyfitness"
 NAME: Final = "SparkyFitness"
-INTEGRATION_VERSION: Final = "0.2.0"
+INTEGRATION_VERSION: Final = "0.3.0"
 
 PLATFORMS: Final = ["sensor", "binary_sensor"]
 
 CONF_API_KEY: Final = "api_key"
+CONF_ACCOUNT_NAME: Final = "account_name"
 CONF_VERIFY_SSL: Final = "verify_ssl"
 CONF_UPDATE_INTERVAL: Final = "update_interval"
 CONF_ENABLE_NUTRITION: Final = "enable_nutrition"
@@ -20,6 +21,7 @@ CONF_ENABLE_CHECKIN: Final = "enable_checkin"
 CONF_ENABLE_ENGAGEMENT: Final = "enable_engagement"
 CONF_ENABLE_GOALS: Final = "enable_goals"
 CONF_ENABLE_TRENDS: Final = "enable_trends"
+CONF_ENABLE_HABITS: Final = "enable_habits"
 CONF_CONFIG_ENTRY_ID: Final = "config_entry_id"
 
 DEFAULT_VERIFY_SSL: Final = True
@@ -49,6 +51,10 @@ TOOL_30_DAY_TRENDS: Final = "sparky_get_30_day_trends"
 TOOL_PROFILE: Final = "sparky_manage_profile"
 TOOL_GOALS: Final = "sparky_manage_goals"
 TOOL_HABITS: Final = "sparky_manage_habits"
+TOOL_FOOD_DIARY: Final = "sparky_get_food_diary"
+TOOL_SEARCH_FOODS: Final = "sparky_search_foods"
+TOOL_EXERCISE_DIARY: Final = "sparky_get_exercise_diary"
+TOOL_SEARCH_EXERCISES: Final = "sparky_search_exercises"
 
 SERVICE_REFRESH: Final = "refresh"
 SERVICE_LOG_WEIGHT: Final = "log_weight"
@@ -70,6 +76,13 @@ SERVICE_UPDATE_EXERCISE_ENTRY: Final = "update_exercise_entry"
 SERVICE_DELETE_EXERCISE_ENTRY: Final = "delete_exercise_entry"
 SERVICE_START_FASTING: Final = "start_fasting"
 SERVICE_LOG_FASTING_WINDOW: Final = "log_fasting_window"
+SERVICE_LIST_FOOD_DIARY: Final = "list_food_diary"
+SERVICE_SEARCH_FOOD: Final = "search_food"
+SERVICE_LIST_EXERCISE_DIARY: Final = "list_exercise_diary"
+SERVICE_SEARCH_EXERCISE: Final = "search_exercise"
+SERVICE_LIST_WORKOUT_PRESETS: Final = "list_workout_presets"
+SERVICE_LIST_HABITS: Final = "list_habits"
+SERVICE_GET_HABIT_HISTORY: Final = "get_habit_history"
 
 SET_TYPES: Final = ("Working Set", "Warmup", "Drop Set", "Failure")
 MEAL_TYPES: Final = ("breakfast", "lunch", "dinner", "snacks")

@@ -1,12 +1,12 @@
 {
   "domain": "sparkyfitness",
   "name": "SparkyFitness",
-  "codeowners": [],
+  "codeowners": ["@JensRudolph"],
   "config_flow": true,
-  "documentation": "https://github.com/jensr/sparkyfitness-custom-integration",
+  "documentation": "https://github.com/JensRudolph/sparkyfitness-custom-integration",
   "integration_type": "service",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/jensr/sparkyfitness-custom-integration/issues",
+  "issue_tracker": "https://github.com/JensRudolph/sparkyfitness-custom-integration/issues",
   "requirements": [],
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

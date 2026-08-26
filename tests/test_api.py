@@ -17,7 +17,12 @@ from custom_components.sparkyfitness.api import (
 from custom_components.sparkyfitness.const import (
     TOOL_CHECKIN,
     TOOL_EXERCISE,
+    TOOL_EXERCISE_DIARY,
     TOOL_FOOD,
+    TOOL_FOOD_DIARY,
+    TOOL_HABITS,
+    TOOL_SEARCH_EXERCISES,
+    TOOL_SEARCH_FOODS,
 )
 from custom_components.sparkyfitness.exceptions import (
     SparkyFitnessAuthenticationError,
@@ -286,3 +291,50 @@ async def test_extended_write_wrappers_use_current_mcp_actions() -> None:
         "delete_exercise_entry",
         "log_fasting",
     ]
+
+
+async def test_read_wrappers_use_only_advertised_mcp_tools_and_actions() -> None:
+    """Read helpers map to the current dedicated and managed MCP surface."""
+
+    session = FakeSession(_success_route)
+    client = SparkyFitnessMcpClient(session, "https://example.com", "secret")
+    client._connected = True
+    client.tools = {
+        name: McpTool(name=name, description="", input_schema={})
+        for name in (
+            TOOL_FOOD_DIARY,
+            TOOL_SEARCH_FOODS,
+            TOOL_EXERCISE_DIARY,
+            TOOL_SEARCH_EXERCISES,
+            TOOL_EXERCISE,
+            TOOL_HABITS,
+        )
+    }
+
+    await client.async_list_food_diary(date="2026-08-26")
+    await client.async_search_food("Oats", limit=10, offset=5)
+    await client.async_list_exercise_diary(
+        start_date="2026-08-25", end_date="2026-08-26"
+    )
+    await client.async_search_exercise(
+        "Press", muscle_group="Chest", equipment="Barbell"
+    )
+    await client.async_list_workout_presets()
+    await client.async_list_habits()
+    await client.async_get_habit_history(
+        ENTRY_ID, start_date="2026-08-01", end_date="2026-08-26"
+    )
+
+    calls = [request["params"] for request in session.requests]
+    assert [call["name"] for call in calls] == [
+        TOOL_FOOD_DIARY,
+        TOOL_SEARCH_FOODS,
+        TOOL_EXERCISE_DIARY,
+        TOOL_SEARCH_EXERCISES,
+        TOOL_EXERCISE,
+        TOOL_HABITS,
+        TOOL_HABITS,
+    ]
+    assert calls[4]["arguments"] == {"action": "get_workout_presets"}
+    assert calls[5]["arguments"] == {"action": "list_habits"}
+    assert calls[6]["arguments"]["action"] == "get_habit_history"

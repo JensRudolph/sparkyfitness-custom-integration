@@ -169,3 +169,40 @@ def parse_exercise_search(text: str) -> list[dict[str, str]]:
         re.MULTILINE | re.DOTALL,
     )
     return [{"name": match.group("name"), "id": match.group("id")} for match in matches]
+
+
+def parse_habit_list(text: str) -> dict[str, dict[str, Any]]:
+    """Extract stable habit IDs and display names from the MCP list."""
+
+    if not text.lstrip().startswith("# Available Habits"):
+        raise SparkyFitnessMcpError("Habit list response had an unexpected format")
+    matches = re.finditer(
+        r"^\*\*(?P<name>.+?)\*\*\s*$\s*^\s*ID:\s*"
+        r"(?P<id>[0-9a-fA-F-]{36})\s*$",
+        text,
+        re.MULTILINE,
+    )
+    return {
+        match.group("id"): {
+            "id": match.group("id"),
+            "name": match.group("name"),
+            "completed": None,
+        }
+        for match in matches
+    }
+
+
+def parse_habit_completion(text: str, entry_date: str) -> bool | None:
+    """Return an explicitly completed/missed habit value for one date."""
+
+    if not text.lstrip().startswith("# Habit History"):
+        raise SparkyFitnessMcpError("Habit history response had an unexpected format")
+    match = re.search(
+        rf"^{re.escape(entry_date)}:\s*(?:✅\s*)?(Completed)|"
+        rf"^{re.escape(entry_date)}:\s*(?:❌\s*)?(Missed)",
+        text,
+        re.MULTILINE,
+    )
+    if match is None:
+        return None
+    return match.group(1) is not None

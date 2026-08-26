@@ -5,8 +5,8 @@
       "user": {
         "title": "Connect to SparkyFitness",
         "description": "Enter the SparkyFitness base URL or its /mcp endpoint and a personal API key.",
-        "data": {"url": "SparkyFitness URL", "api_key": "API key", "verify_ssl": "Verify TLS certificate"},
-        "data_description": {"verify_ssl": "Keep enabled unless you understand the security risk of an unverified certificate."}
+        "data": {"url": "SparkyFitness URL", "account_name": "Account name", "api_key": "API key", "verify_ssl": "Verify TLS certificate"},
+        "data_description": {"account_name": "Optional label used to distinguish multiple API keys on the same server.", "verify_ssl": "Keep enabled unless you understand the security risk of an unverified certificate."}
       },
       "reauth_confirm": {
         "title": "Reauthenticate SparkyFitness",
@@ -31,6 +31,7 @@
         "title": "SparkyFitness options",
         "description": "Disabling TLS verification exposes the API key and health data to interception. Feature switches also prevent their MCP polling calls.",
         "data": {
+          "account_name": "Account name",
           "update_interval": "Update interval",
           "verify_ssl": "Verify TLS certificate",
           "enable_nutrition": "Enable nutrition sensors",
@@ -38,7 +39,8 @@
           "enable_checkin": "Enable check-in sensors",
           "enable_engagement": "Enable engagement sensors",
           "enable_goals": "Enable goal sensors",
-          "enable_trends": "Enable 30-day trend sensors"
+          "enable_trends": "Enable 30-day trend sensors",
+          "enable_habits": "Enable habit sensors"
         }
       }
     }
@@ -55,6 +57,20 @@
       "carbs_goal": {"name": "Carbohydrate goal"},
       "fat_goal": {"name": "Fat goal"},
       "water_goal": {"name": "Water goal"},
+      "calories_remaining": {"name": "Calories remaining"},
+      "protein_remaining": {"name": "Protein remaining"},
+      "carbs_remaining": {"name": "Carbohydrates remaining"},
+      "fat_remaining": {"name": "Fat remaining"},
+      "water_remaining": {"name": "Water remaining"},
+      "calories_progress": {"name": "Calorie goal progress"},
+      "protein_progress": {"name": "Protein goal progress"},
+      "carbs_progress": {"name": "Carbohydrate goal progress"},
+      "fat_progress": {"name": "Fat goal progress"},
+      "water_progress": {"name": "Water goal progress"},
+      "fasting_elapsed": {"name": "Fasting elapsed"},
+      "fasting_target_end": {"name": "Fasting target end"},
+      "fasting_remaining": {"name": "Fasting remaining"},
+      "fasting_progress": {"name": "Fasting progress"},
       "food_days_logged_30d": {"name": "Food days logged (30 days)"},
       "avg_daily_calories_30d": {"name": "Average daily calories (30 days)"},
       "avg_daily_protein_30d": {"name": "Average daily protein (30 days)"},
@@ -66,6 +82,6 @@
       "avg_sleep_score_30d": {"name": "Average sleep score (30 days)"},
       "weight_entries_30d": {"name": "Weight entries (30 days)"}
     },
-    "binary_sensor": {"fasting": {"name": "Fasting"}}
+    "binary_sensor": {"fasting": {"name": "Fasting"}, "fasting_goal_reached": {"name": "Fasting goal reached"}}
   }
 }

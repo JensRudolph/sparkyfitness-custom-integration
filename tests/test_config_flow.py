@@ -11,11 +11,13 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sparkyfitness.const import (
+    CONF_ACCOUNT_NAME,
     CONF_API_KEY,
     CONF_ENABLE_CHECKIN,
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
     CONF_ENABLE_GOALS,
+    CONF_ENABLE_HABITS,
     CONF_ENABLE_NUTRITION,
     CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
@@ -98,6 +100,35 @@ async def test_config_flow_errors(hass, error: Exception, error_key: str) -> Non
     assert result["errors"] == {"base": error_key}
 
 
+async def test_account_name_distinguishes_shared_server_entries(hass) -> None:
+    """An optional account label is reflected in the config-entry title."""
+
+    with (
+        patch(
+            "custom_components.sparkyfitness.config_flow.SparkyFitnessMcpClient.async_test_connection",
+            new=AsyncMock(return_value={"sparky_manage_checkin": object()}),
+        ),
+        patch(
+            "custom_components.sparkyfitness.config_flow.SparkyFitnessMcpClient.async_disconnect",
+            new=AsyncMock(),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_USER},
+            data={
+                CONF_URL: "https://sparky.example.com",
+                CONF_ACCOUNT_NAME: "Jens",
+                CONF_API_KEY: "private-key",
+                CONF_VERIFY_SSL: True,
+            },
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Jens · sparky.example.com"
+    assert result["data"][CONF_ACCOUNT_NAME] == "Jens"
+
+
 async def test_non_url_is_rejected_before_network(hass) -> None:
     """Malformed connection data never reaches the MCP client."""
 
@@ -176,6 +207,7 @@ async def test_options_flow(hass) -> None:
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.FORM
     options = {
+        CONF_ACCOUNT_NAME: "Jens",
         CONF_UPDATE_INTERVAL: 10,
         CONF_VERIFY_SSL: False,
         CONF_ENABLE_NUTRITION: True,
@@ -184,9 +216,11 @@ async def test_options_flow(hass) -> None:
         CONF_ENABLE_ENGAGEMENT: False,
         CONF_ENABLE_GOALS: True,
         CONF_ENABLE_TRENDS: False,
+        CONF_ENABLE_HABITS: True,
     }
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], options
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == options
+    assert entry.title == "Jens · sparky.example.com"

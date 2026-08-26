@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import SparkyFitnessMcpClient
 from .const import (
@@ -18,6 +19,7 @@ from .const import (
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
     CONF_ENABLE_GOALS,
+    CONF_ENABLE_HABITS,
     CONF_ENABLE_NUTRITION,
     CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
@@ -26,6 +28,7 @@ from .const import (
     TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
     TOOL_GOAL_SNAPSHOT,
+    TOOL_HABITS,
     TOOL_HEALTH_SUMMARY,
     TOOL_STREAK,
 )
@@ -39,6 +42,8 @@ from .extract import (
     parse_checkin_diary,
     parse_fasting_status,
     parse_goal_snapshot,
+    parse_habit_completion,
+    parse_habit_list,
     parse_health_summary,
     parse_logging_streak,
 )
@@ -131,16 +136,22 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
             and self._section_due("trends", _TRENDS_REFRESH_INTERVAL, now)
         ):
             calls["trends"] = self.client.async_get_30_day_trends()
+        if (
+            self.feature_enabled(CONF_ENABLE_HABITS)
+            and TOOL_HABITS in self.client.tools
+        ):
+            calls["habits"] = self._async_get_habits(dt_util.now().date().isoformat())
 
         previous = self.data or SparkyFitnessData()
         values = dict(previous.values)
         fasting = previous.fasting
+        habits = dict(previous.habits)
         section_errors: dict[str, str] = {}
 
         if not calls:
             self.last_successful_refresh = now
             self.last_error_class = None
-            return SparkyFitnessData(values=values, fasting=fasting)
+            return SparkyFitnessData(values=values, fasting=fasting, habits=habits)
 
         results = await asyncio.gather(*calls.values(), return_exceptions=True)
         successful = 0
@@ -176,6 +187,8 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
                 elif section == "trends":
                     values.update(parse_30_day_trends(str(result)))
                     self._section_updated_at["trends"] = now
+                elif section == "habits":
+                    habits = result
             except SparkyFitnessError as err:
                 section_errors[section] = type(err).__name__
                 self.last_error_class = type(err).__name__
@@ -194,8 +207,30 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         return SparkyFitnessData(
             values=values,
             fasting=fasting,
+            habits=habits,
             section_errors=section_errors,
         )
+
+    async def _async_get_habits(self, entry_date: str) -> dict[str, dict[str, Any]]:
+        """Fetch today's state for every habit through reviewed MCP actions."""
+
+        habits = parse_habit_list(str(await self.client.async_list_habits()))
+        if not habits:
+            return {}
+        results = await asyncio.gather(
+            *(
+                self.client.async_get_habit_history(
+                    habit_id, start_date=entry_date, end_date=entry_date
+                )
+                for habit_id in habits
+            ),
+            return_exceptions=True,
+        )
+        for habit, result in zip(habits.values(), results, strict=True):
+            if isinstance(result, BaseException):
+                continue
+            habit["completed"] = parse_habit_completion(str(result), entry_date)
+        return habits
 
     @staticmethod
     def _normalize_weight(values: dict[str, Any]) -> None:

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -13,6 +14,7 @@ from custom_components.sparkyfitness.const import (
     TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
     TOOL_GOAL_SNAPSHOT,
+    TOOL_HABITS,
     TOOL_HEALTH_SUMMARY,
     TOOL_STREAK,
 )
@@ -68,7 +70,11 @@ async def test_successful_refresh(hass) -> None:
     """All stable priority values are projected and preferred lbs become kg."""
 
     coordinator = SparkyFitnessCoordinator(hass, _entry(hass), _client())
-    data = await coordinator._async_update_data()
+    with patch(
+        "custom_components.sparkyfitness.coordinator.dt_util.now",
+        return_value=datetime(2026, 8, 26, tzinfo=UTC),
+    ):
+        data = await coordinator._async_update_data()
     assert data.values["calories_today"] == 1800
     assert data.values["steps_today"] == 10000
     assert data.values["sleep_duration"] == 7.5
@@ -167,3 +173,33 @@ async def test_goal_and_trend_sections_are_parsed_and_throttled(hass) -> None:
     await coordinator._async_update_data()
     assert client.async_get_goal_snapshot.await_count == 2
     client.async_get_30_day_trends.assert_awaited_once()
+
+
+async def test_habit_states_are_read_without_storing_history(hass) -> None:
+    """Habit polling keeps only today's compact completion state."""
+
+    habit_id = "11111111-1111-1111-1111-111111111111"
+    client = _client()
+    client.tools[TOOL_HABITS] = object()
+    client.async_list_habits = AsyncMock(
+        return_value=f"# Available Habits\n\n**Morning walk**\n  ID: {habit_id}"
+    )
+    client.async_get_habit_history = AsyncMock(
+        return_value="# Habit History\n\n2026-08-26: ✅ Completed"
+    )
+    coordinator = SparkyFitnessCoordinator(hass, _entry(hass), client)
+
+    with patch(
+        "custom_components.sparkyfitness.coordinator.dt_util.now",
+        return_value=datetime(2026, 8, 26, tzinfo=UTC),
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data.habits[habit_id] == {
+        "id": habit_id,
+        "name": "Morning walk",
+        "completed": True,
+    }
+    client.async_get_habit_history.assert_awaited_once_with(
+        habit_id, start_date="2026-08-26", end_date="2026-08-26"
+    )

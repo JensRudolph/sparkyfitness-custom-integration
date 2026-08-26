@@ -12,7 +12,7 @@ relay, private REST endpoints, database access, browser cookies, or web scraping
 Home Assistant
   ├── Config flow / options / reauthentication
   ├── DataUpdateCoordinator
-  ├── Sensors and fasting binary sensor
+  ├── Sensors and binary sensors
   ├── Explicit Home Assistant actions
   └── Privacy-preserving diagnostics
              │
@@ -72,7 +72,8 @@ Until this repository is included in the HACS default catalog:
 
 1. Open HACS in Home Assistant.
 2. Open the three-dot menu and choose **Custom repositories**.
-3. Add this repository URL and select **Integration**.
+3. Add `https://github.com/JensRudolph/sparkyfitness-custom-integration`
+   and select **Integration**.
 4. Install **SparkyFitness**.
 5. Restart Home Assistant.
 
@@ -99,8 +100,10 @@ Restart Home Assistant after copying or updating it.
 3. Enter either the base URL, such as
    `https://sparkyfitness.example.com`, or the complete endpoint,
    `https://sparkyfitness.example.com/mcp`.
-4. Enter the personal API key.
-5. Keep TLS verification enabled.
+4. Optionally enter an account name such as `Jens` to distinguish multiple API
+   keys on the same server.
+5. Enter the personal API key.
+6. Keep TLS verification enabled.
 
 Before creating the entry, the flow initializes MCP, requests `tools/list`, and
 requires at least one characteristic SparkyFitness tool. It distinguishes
@@ -111,6 +114,7 @@ connection, authentication, non-MCP, TLS, and timeout failures.
 Open the integration's **Configure** dialog to change:
 
 - Update interval: 1–60 minutes (default: 5).
+- Account name used in the config-entry and device names.
 - TLS certificate verification.
 - Nutrition sensors.
 - Exercise sensors.
@@ -118,6 +122,7 @@ Open the integration's **Configure** dialog to change:
 - Engagement sensors.
 - Goal sensors.
 - 30-day trend sensors.
+- Habit sensors.
 
 Disabling a feature group also prevents its unnecessary MCP polling calls.
 Disabling TLS verification is unsafe: it allows interception of both the API key
@@ -159,6 +164,17 @@ Missing data remains unknown; it is never estimated or replaced with zero.
 | `avg_sleep_score_30d` | `sparky_get_30_day_trends` | score |
 | `weight_entries_30d` | `sparky_get_30_day_trends` | count |
 | `binary_sensor.sparkyfitness_fasting` | `sparky_manage_checkin/get_fasting_status` | on/off |
+| `fasting_elapsed` | locally calculated from the active MCP status | s |
+| `fasting_target_end` | locally calculated for protocols such as `16:8` | timestamp |
+| `fasting_remaining` | locally calculated for protocols such as `16:8` | s |
+| `fasting_progress` | locally calculated for protocols such as `16:8` | % |
+| `binary_sensor.sparkyfitness_fasting_goal_reached` | locally calculated for protocols such as `16:8` | on/off |
+| `binary_sensor.sparkyfitness_<habit>` | `sparky_manage_habits` | on/off |
+
+Goal progress and remaining-amount sensors are also available for calories,
+protein, carbohydrates, fat, and water. They are disabled by default in the
+entity registry to avoid unnecessary entity clutter. Habit entities retain only
+today's compact state and stable habit ID, never the full completion history.
 
 All entities belong to one virtual **SparkyFitness** device per config entry. The
 MCP server version from the initialize response is shown as the software version
@@ -191,6 +207,13 @@ Every action uses a fixed, reviewed MCP mapping. There is deliberately no generi
 | `sparkyfitness.log_habit` | `sparky_manage_habits/log_habit` |
 | `sparkyfitness.start_fasting` | `sparky_manage_checkin/log_fasting` with `ACTIVE` status |
 | `sparkyfitness.log_fasting_window` | `sparky_manage_checkin/log_fasting` with start/end |
+| `sparkyfitness.list_food_diary` | `sparky_get_food_diary` |
+| `sparkyfitness.search_food` | `sparky_search_foods` |
+| `sparkyfitness.list_exercise_diary` | `sparky_get_exercise_diary` |
+| `sparkyfitness.search_exercise` | `sparky_search_exercises` |
+| `sparkyfitness.list_workout_presets` | `sparky_manage_exercise/get_workout_presets` |
+| `sparkyfitness.list_habits` | `sparky_manage_habits/list_habits` |
+| `sparkyfitness.get_habit_history` | `sparky_manage_habits/get_habit_history` |
 
 After every successful write, the coordinator requests an immediate refresh.
 All action fields and selectors are documented in the Home Assistant action UI.
@@ -198,9 +221,12 @@ All action fields and selectors are documented in the Home Assistant action UI.
 Update and delete actions deliberately require an exact diary-entry UUID. Delete
 actions additionally require `confirm: true`; names are never resolved or guessed
 for destructive operations. IDs are shown by the corresponding SparkyFitness food
-or exercise diary MCP output.
+or exercise diary MCP output. The read-only list/search actions above make these
+IDs available directly in Home Assistant action responses. Those responses are
+not copied into entity attributes or the coordinator.
 
-If multiple SparkyFitness config entries are loaded, add the optional
+Each API key is configured as a separate entry. If multiple SparkyFitness config
+entries are loaded, add the optional
 `config_entry_id` field. With exactly one loaded entry, it is selected
 automatically.
 
@@ -339,6 +365,10 @@ only when their tools and feature groups are active. Goals are refreshed at most
 every 30 minutes and 30-day aggregates at most hourly, unless a relevant write or
 manual refresh invalidates that cache.
 
+When habit sensors are enabled, the coordinator first lists the available habits
+and then reads today's state for each habit through the existing MCP actions.
+Disable habit sensors if this additional per-habit polling is not wanted.
+
 Optional section errors are isolated. A total communication failure marks
 coordinator entities unavailable while retaining their last state. The next
 successful poll recovers automatically. A rejected/revoked API key starts Home
@@ -411,6 +441,9 @@ Upgrade SparkyFitness; the integration does not fall back to private APIs.
 - The current MCP has `set_goals`; it does not expose distinct create/update goal
   records. The integration implements the real action as `set_goals` instead of
   inventing `create_goal` or `update_goal`.
+- Although the current goals schema accepts a `weight` write field, the upstream
+  MCP implementation does not persist it. The Home Assistant action therefore
+  does not expose a misleading target-weight input.
 - The current `log_fasting` MCP action always creates a fasting record. It can
   start a new active fast or record a completed window, but it cannot update/end
   the already active record. No misleading `end_fasting` action is exposed.
@@ -419,7 +452,8 @@ Upgrade SparkyFitness; the integration does not fall back to private APIs.
   Markdown projection; the isolated parser can be replaced when such a tool is
   added upstream.
 - Medication, coaching, image-analysis, profile mutation, and full diary/history
-  payloads are intentionally not entities or generic actions in this release.
+  payloads are intentionally not entities. Reviewed diary/history reads are
+  transient action responses instead.
 
 ## MCP compatibility verification
 
@@ -451,8 +485,13 @@ uv run ruff format --check custom_components tests
 uv run pytest
 ```
 
-Home Assistant's official test harness targets Linux. On Windows, run the suite
-inside WSL, a Linux container, or Home Assistant's development container.
+Home Assistant's official test harness targets Linux. On native Windows, the
+platform-independent subset can run locally; GitHub Actions runs the complete
+mocked suite automatically.
+
+GitHub Actions runs Ruff, the complete mocked test suite, HACS validation, and
+hassfest validation. A semantic version tag such as `v0.3.0` creates a GitHub
+release automatically.
 
 The tests use mocks only and require no real SparkyFitness URL or API key. They
 cover config flow errors, MCP discovery/calls/errors/timeouts/disconnect/reconnect,

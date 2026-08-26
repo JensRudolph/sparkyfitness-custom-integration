@@ -23,11 +23,13 @@ from homeassistant.helpers.selector import (
 
 from .api import SparkyFitnessMcpClient, normalize_mcp_endpoint
 from .const import (
+    CONF_ACCOUNT_NAME,
     CONF_API_KEY,
     CONF_ENABLE_CHECKIN,
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
     CONF_ENABLE_GOALS,
+    CONF_ENABLE_HABITS,
     CONF_ENABLE_NUTRITION,
     CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
@@ -74,6 +76,9 @@ class SparkyFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL
                     ),
                 }
+                account_name = str(user_input.get(CONF_ACCOUNT_NAME, "")).strip()
+                if account_name:
+                    normalized[CONF_ACCOUNT_NAME] = account_name
                 error = await self._async_validate(normalized)
                 if error is None:
                     for entry in self._async_current_entries():
@@ -82,8 +87,9 @@ class SparkyFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             and entry.data.get(CONF_API_KEY) == normalized[CONF_API_KEY]
                         ):
                             return self.async_abort(reason="already_configured")
-                    host = urlsplit(endpoint).hostname or endpoint
-                    return self.async_create_entry(title=host, data=normalized)
+                    return self.async_create_entry(
+                        title=_entry_title(endpoint, account_name), data=normalized
+                    )
                 errors["base"] = error
 
         schema = vol.Schema(
@@ -92,6 +98,10 @@ class SparkyFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_URL,
                     default=(user_input or {}).get(CONF_URL, ""),
                 ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+                vol.Optional(
+                    CONF_ACCOUNT_NAME,
+                    default=(user_input or {}).get(CONF_ACCOUNT_NAME, ""),
+                ): TextSelector(),
                 vol.Required(CONF_API_KEY): TextSelector(
                     TextSelectorConfig(type=TextSelectorType.PASSWORD)
                 ),
@@ -187,6 +197,12 @@ class SparkyFitnessOptionsFlow(config_entries.OptionsFlow):
         """Show all supported options in one step."""
 
         if user_input is not None:
+            account_name = str(user_input.get(CONF_ACCOUNT_NAME, "")).strip()
+            user_input[CONF_ACCOUNT_NAME] = account_name
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                title=_entry_title(self.config_entry.data[CONF_URL], account_name),
+            )
             return self.async_create_entry(title="", data=user_input)
 
         options = self.config_entry.options
@@ -195,6 +211,12 @@ class SparkyFitnessOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_ACCOUNT_NAME,
+                        default=options.get(
+                            CONF_ACCOUNT_NAME, data.get(CONF_ACCOUNT_NAME, "")
+                        ),
+                    ): TextSelector(),
                     vol.Required(
                         CONF_UPDATE_INTERVAL,
                         default=options.get(
@@ -240,6 +262,17 @@ class SparkyFitnessOptionsFlow(config_entries.OptionsFlow):
                         CONF_ENABLE_TRENDS,
                         default=options.get(CONF_ENABLE_TRENDS, True),
                     ): BooleanSelector(),
+                    vol.Required(
+                        CONF_ENABLE_HABITS,
+                        default=options.get(CONF_ENABLE_HABITS, True),
+                    ): BooleanSelector(),
                 }
             ),
         )
+
+
+def _entry_title(endpoint: str, account_name: str) -> str:
+    """Build a stable title that remains distinguishable on shared servers."""
+
+    host = urlsplit(endpoint).hostname or endpoint
+    return f"{account_name} · {host}" if account_name else host

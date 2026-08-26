@@ -25,6 +25,7 @@ class SparkyFitnessData:
 
     values: dict[str, Any] = field(default_factory=dict)
     fasting: dict[str, Any] | None = None
+    habits: dict[str, dict[str, Any]] = field(default_factory=dict)
     section_errors: dict[str, str] = field(default_factory=dict)
 
 

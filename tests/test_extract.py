@@ -6,6 +6,8 @@ from custom_components.sparkyfitness.extract import (
     parse_exercise_search,
     parse_fasting_status,
     parse_goal_snapshot,
+    parse_habit_completion,
+    parse_habit_list,
     parse_health_summary,
     parse_logging_streak,
 )
@@ -117,3 +119,32 @@ def test_parse_goal_and_30_day_trend_json() -> None:
         "avg_sleep_score_30d": 88,
         "weight_entries_30d": 9,
     }
+
+
+def test_parse_habits_and_today_completion() -> None:
+    """Habit names, UUIDs, and explicit daily values remain deterministic."""
+
+    habit_id = "11111111-1111-1111-1111-111111111111"
+    assert parse_habit_list(
+        f"# Available Habits\n\n**Morning walk**\n  ID: {habit_id}"
+    ) == {
+        habit_id: {
+            "id": habit_id,
+            "name": "Morning walk",
+            "completed": None,
+        }
+    }
+    assert (
+        parse_habit_completion(
+            "# Habit History\n\n2026-08-26: ✅ Completed", "2026-08-26"
+        )
+        is True
+    )
+    assert (
+        parse_habit_completion("# Habit History\n\n2026-08-26: ❌ Missed", "2026-08-26")
+        is False
+    )
+    assert (
+        parse_habit_completion("# Habit History\n\nNo results found.", "2026-08-26")
+        is None
+    )

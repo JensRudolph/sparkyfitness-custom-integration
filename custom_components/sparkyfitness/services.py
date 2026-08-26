@@ -20,6 +20,11 @@ from .const import (
     SERVICE_CREATE_WORKOUT_PRESET,
     SERVICE_DELETE_EXERCISE_ENTRY,
     SERVICE_DELETE_FOOD_ENTRY,
+    SERVICE_GET_HABIT_HISTORY,
+    SERVICE_LIST_EXERCISE_DIARY,
+    SERVICE_LIST_FOOD_DIARY,
+    SERVICE_LIST_HABITS,
+    SERVICE_LIST_WORKOUT_PRESETS,
     SERVICE_LOG_BIOMETRICS,
     SERVICE_LOG_CUSTOM_METRIC,
     SERVICE_LOG_EXERCISE,
@@ -32,6 +37,8 @@ from .const import (
     SERVICE_LOG_WEIGHT,
     SERVICE_LOG_WORKOUT_PRESET,
     SERVICE_REFRESH,
+    SERVICE_SEARCH_EXERCISE,
+    SERVICE_SEARCH_FOOD,
     SERVICE_SET_GOALS,
     SERVICE_START_FASTING,
     SERVICE_UPDATE_EXERCISE_ENTRY,
@@ -43,6 +50,7 @@ from .exceptions import (
     SparkyFitnessError,
     SparkyFitnessUnsupportedFeatureError,
 )
+from .extract import extract_json
 
 ENTRY_FIELD = {vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string}
 DATE_FIELD = {vol.Optional("entry_date"): cv.date}
@@ -52,6 +60,39 @@ UUID_VALUE = vol.All(
         r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
         r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     ),
+)
+NON_EMPTY_STRING = vol.All(cv.string, vol.Length(min=1))
+DATE_RANGE_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Optional("date"): cv.date,
+        vol.Optional("start_date"): cv.date,
+        vol.Optional("end_date"): cv.date,
+    }
+)
+SEARCH_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Required("query"): NON_EMPTY_STRING,
+        vol.Optional("limit", default=20): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional("offset", default=0): vol.All(vol.Coerce(int), vol.Range(min=0)),
+    }
+)
+SEARCH_EXERCISE_SCHEMA = SEARCH_SCHEMA.extend(
+    {
+        vol.Optional("muscle_group"): cv.string,
+        vol.Optional("equipment"): cv.string,
+    }
+)
+HABIT_HISTORY_SCHEMA = vol.Schema(
+    {
+        **ENTRY_FIELD,
+        vol.Required("habit_id"): UUID_VALUE,
+        vol.Optional("start_date"): cv.date,
+        vol.Optional("end_date"): cv.date,
+    }
 )
 
 LOG_WEIGHT_SCHEMA = vol.Schema(
@@ -243,7 +284,6 @@ SET_GOALS_SCHEMA = vol.Schema(
         vol.Optional("carbs"): vol.All(vol.Coerce(float), vol.Range(min=0)),
         vol.Optional("fat"): vol.All(vol.Coerce(float), vol.Range(min=0)),
         vol.Optional("water_goal_ml"): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional("weight"): vol.All(vol.Coerce(float), vol.Range(min=0)),
     }
 )
 LOG_HABIT_SCHEMA = vol.Schema(
@@ -293,6 +333,54 @@ def async_register_services(hass: HomeAssistant) -> None:
                 runtime.coordinator.invalidate_sections("goals", "trends")
                 await runtime.coordinator.async_request_refresh()
                 return {"result": "refreshed"}
+
+            if service == SERVICE_LIST_FOOD_DIARY:
+                result = await client.async_list_food_diary(
+                    **_date_range_arguments(data)
+                )
+                return {"result": _response_value(result)}
+            if service == SERVICE_SEARCH_FOOD:
+                result = await client.async_search_food(
+                    data["query"], limit=data["limit"], offset=data["offset"]
+                )
+                return {"result": _response_value(result)}
+            if service == SERVICE_LIST_EXERCISE_DIARY:
+                result = await client.async_list_exercise_diary(
+                    **_date_range_arguments(data)
+                )
+                return {"result": _response_value(result)}
+            if service == SERVICE_SEARCH_EXERCISE:
+                result = await client.async_search_exercise(
+                    data["query"],
+                    muscle_group=data.get("muscle_group"),
+                    equipment=data.get("equipment"),
+                    limit=data["limit"],
+                    offset=data["offset"],
+                )
+                return {"result": _response_value(result)}
+            if service == SERVICE_LIST_WORKOUT_PRESETS:
+                result = await client.async_list_workout_presets()
+                return {"result": _response_value(result)}
+            if service == SERVICE_LIST_HABITS:
+                result = await client.async_list_habits()
+                return {"result": _response_value(result)}
+            if service == SERVICE_GET_HABIT_HISTORY:
+                start_date = _optional_date_string(data.get("start_date"))
+                end_date = _optional_date_string(data.get("end_date"))
+                if (
+                    start_date is not None
+                    and end_date is not None
+                    and end_date < start_date
+                ):
+                    raise ServiceValidationError(
+                        "end_date must not be before start_date"
+                    )
+                result = await client.async_get_habit_history(
+                    data["habit_id"],
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                return {"result": _response_value(result)}
 
             entry_date_value = data.pop("entry_date", None)
             entry_date = _date_string(entry_date_value)
@@ -492,6 +580,13 @@ def async_register_services(hass: HomeAssistant) -> None:
         SERVICE_LOG_HABIT: LOG_HABIT_SCHEMA,
         SERVICE_START_FASTING: START_FASTING_SCHEMA,
         SERVICE_LOG_FASTING_WINDOW: LOG_FASTING_WINDOW_SCHEMA,
+        SERVICE_LIST_FOOD_DIARY: DATE_RANGE_SCHEMA,
+        SERVICE_SEARCH_FOOD: SEARCH_SCHEMA,
+        SERVICE_LIST_EXERCISE_DIARY: DATE_RANGE_SCHEMA,
+        SERVICE_SEARCH_EXERCISE: SEARCH_EXERCISE_SCHEMA,
+        SERVICE_LIST_WORKOUT_PRESETS: vol.Schema(ENTRY_FIELD),
+        SERVICE_LIST_HABITS: vol.Schema(ENTRY_FIELD),
+        SERVICE_GET_HABIT_HISTORY: HABIT_HISTORY_SCHEMA,
     }
     for service, schema in registrations.items():
         hass.services.async_register(
@@ -499,7 +594,20 @@ def async_register_services(hass: HomeAssistant) -> None:
             service,
             handle,
             schema=schema,
-            supports_response=SupportsResponse.OPTIONAL,
+            supports_response=(
+                SupportsResponse.ONLY
+                if service
+                in {
+                    SERVICE_LIST_FOOD_DIARY,
+                    SERVICE_SEARCH_FOOD,
+                    SERVICE_LIST_EXERCISE_DIARY,
+                    SERVICE_SEARCH_EXERCISE,
+                    SERVICE_LIST_WORKOUT_PRESETS,
+                    SERVICE_LIST_HABITS,
+                    SERVICE_GET_HABIT_HISTORY,
+                }
+                else SupportsResponse.OPTIONAL
+            ),
         )
 
 
@@ -535,6 +643,44 @@ def _date_string(value: date | str | None) -> str:
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
+
+
+def _optional_date_string(value: date | str | None) -> str | None:
+    """Render an optional date without applying the today default."""
+
+    return _date_string(value) if value is not None else None
+
+
+def _date_range_arguments(data: dict[str, Any]) -> dict[str, str]:
+    """Validate and render the dedicated diary tool's date range."""
+
+    single_date = data.get("date")
+    start_date = data.get("start_date")
+    end_date = data.get("end_date")
+    if single_date is not None and (start_date is not None or end_date is not None):
+        raise ServiceValidationError("Use date or start_date/end_date, not both")
+    if (start_date is None) != (end_date is None):
+        raise ServiceValidationError("Provide both start_date and end_date")
+    if start_date is not None and end_date is not None:
+        start = _date_string(start_date)
+        end = _date_string(end_date)
+        if end < start:
+            raise ServiceValidationError("end_date must not be before start_date")
+        return {"start_date": start, "end_date": end}
+    if single_date is not None:
+        return {"date": _date_string(single_date)}
+    return {}
+
+
+def _response_value(result: Any) -> Any:
+    """Return structured MCP JSON when present, preserving readable Markdown."""
+
+    if not isinstance(result, str):
+        return result
+    try:
+        return extract_json(result)
+    except SparkyFitnessError:
+        return result
 
 
 def _water_to_ml(amount: float, unit: str) -> float:

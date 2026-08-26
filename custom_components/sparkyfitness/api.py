@@ -21,11 +21,15 @@ from .const import (
     TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
     TOOL_EXERCISE,
+    TOOL_EXERCISE_DIARY,
     TOOL_FOOD,
+    TOOL_FOOD_DIARY,
     TOOL_GOAL_SNAPSHOT,
     TOOL_GOALS,
     TOOL_HABITS,
     TOOL_HEALTH_SUMMARY,
+    TOOL_SEARCH_EXERCISES,
+    TOOL_SEARCH_FOODS,
     TOOL_STREAK,
 )
 from .exceptions import (
@@ -256,6 +260,79 @@ class SparkyFitnessMcpClient:
         """Return the current structured 30-day aggregates."""
 
         return str(await self.async_call_tool(TOOL_30_DAY_TRENDS))
+
+    async def async_list_food_diary(self, **values: Any) -> Any:
+        """Return entry-level food diary data for a date or date range."""
+
+        return await self.async_call_tool(TOOL_FOOD_DIARY, values)
+
+    async def async_search_food(
+        self, query: str, *, limit: int = 20, offset: int = 0
+    ) -> Any:
+        """Search the authenticated user's SparkyFitness food catalog."""
+
+        return await self.async_call_tool(
+            TOOL_SEARCH_FOODS,
+            {"query": query, "limit": limit, "offset": offset},
+        )
+
+    async def async_list_exercise_diary(self, **values: Any) -> Any:
+        """Return entry-level exercise diary data for a date or date range."""
+
+        return await self.async_call_tool(TOOL_EXERCISE_DIARY, values)
+
+    async def async_search_exercise(
+        self,
+        query: str,
+        *,
+        muscle_group: str | None = None,
+        equipment: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> Any:
+        """Search the authenticated user's exercise catalog."""
+
+        arguments: dict[str, Any] = {
+            "query": query,
+            "limit": limit,
+            "offset": offset,
+        }
+        if muscle_group:
+            arguments["muscle_group"] = muscle_group
+        if equipment:
+            arguments["equipment"] = equipment
+        return await self.async_call_tool(TOOL_SEARCH_EXERCISES, arguments)
+
+    async def async_list_workout_presets(self) -> Any:
+        """Return workout presets exposed by the exercise MCP tool."""
+
+        return await self.async_call_tool(
+            TOOL_EXERCISE, {"action": "get_workout_presets"}
+        )
+
+    async def async_list_habits(self) -> Any:
+        """Return the authenticated user's boolean habits."""
+
+        return await self.async_call_tool(TOOL_HABITS, {"action": "list_habits"})
+
+    async def async_get_habit_history(
+        self,
+        habit_id: str,
+        *,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Any:
+        """Return completion history for one exact habit UUID."""
+
+        arguments: dict[str, Any] = {
+            "action": "get_habit_history",
+            "habit_id": habit_id,
+        }
+        if start_date is not None:
+            arguments["start_date"] = start_date
+        if end_date is not None:
+            arguments["end_date"] = end_date
+        return await self.async_call_tool(TOOL_HABITS, arguments)
 
     async def async_log_weight(self, weight: float, unit: str, entry_date: str) -> Any:
         """Log weight through the check-in MCP tool."""

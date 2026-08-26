@@ -375,7 +375,7 @@ log_workout_preset:
 
 set_goals:
   name: Set goals
-  description: Set calorie, macro, water, and/or weight goals from an effective date.
+  description: Set calorie, macro, and/or water goals from an effective date.
   fields:
     config_entry_id: *config_entry
     start_date:
@@ -396,10 +396,6 @@ set_goals:
     water_goal_ml:
       name: Water goal
       selector: {number: {min: 0, step: 1, mode: box, unit_of_measurement: ml}}
-    weight:
-      name: Target weight
-      selector: {number: {min: 0, step: 0.1, mode: box}}
-
 log_habit:
   name: Log habit
   description: Log completion for an existing SparkyFitness habit ID.
@@ -449,3 +445,103 @@ log_fasting_window:
     fasting_type:
       name: Fasting type
       selector: {text: {}}
+
+list_food_diary:
+  name: List food diary
+  description: Return entry-level food diary data and stable entry IDs. The result is returned only to the calling action and is not stored as entity attributes.
+  fields:
+    config_entry_id: *config_entry
+    date:
+      name: Date
+      description: A single date. Leave all date fields empty for today.
+      selector: {date: {}}
+    start_date:
+      name: Start date
+      description: Use together with end date instead of date.
+      selector: {date: {}}
+    end_date:
+      name: End date
+      description: Use together with start date instead of date.
+      selector: {date: {}}
+
+search_food:
+  name: Search food
+  description: Search foods stored in the authenticated user's SparkyFitness catalog.
+  fields:
+    config_entry_id: *config_entry
+    query:
+      name: Query
+      required: true
+      selector: {text: {}}
+    limit: &limit
+      name: Limit
+      default: 20
+      selector: {number: {min: 1, max: 100, step: 1, mode: box}}
+    offset: &offset
+      name: Offset
+      default: 0
+      selector: {number: {min: 0, step: 1, mode: box}}
+
+list_exercise_diary:
+  name: List exercise diary
+  description: Return entry-level exercise diary data and stable entry IDs. The result is returned only to the calling action and is not stored as entity attributes.
+  fields:
+    config_entry_id: *config_entry
+    date:
+      name: Date
+      description: A single date. Leave all date fields empty for today.
+      selector: {date: {}}
+    start_date:
+      name: Start date
+      description: Use together with end date instead of date.
+      selector: {date: {}}
+    end_date:
+      name: End date
+      description: Use together with start date instead of date.
+      selector: {date: {}}
+
+search_exercise:
+  name: Search exercise
+  description: Search exercises stored in the authenticated user's SparkyFitness catalog.
+  fields:
+    config_entry_id: *config_entry
+    query:
+      name: Query
+      required: true
+      selector: {text: {}}
+    muscle_group:
+      name: Muscle group
+      selector: {text: {}}
+    equipment:
+      name: Equipment
+      selector: {text: {}}
+    limit: *limit
+    offset: *offset
+
+list_workout_presets:
+  name: List workout presets
+  description: Return workout preset names and stable IDs from the existing exercise MCP tool.
+  fields:
+    config_entry_id: *config_entry
+
+list_habits:
+  name: List habits
+  description: Return habit names and stable IDs from the existing habits MCP tool.
+  fields:
+    config_entry_id: *config_entry
+
+get_habit_history:
+  name: Get habit history
+  description: Return completion history for one exact habit ID.
+  fields:
+    config_entry_id: *config_entry
+    habit_id:
+      name: Habit ID
+      required: true
+      selector: {text: {}}
+    start_date:
+      name: Start date
+      selector: {date: {}}
+    end_date:
+      name: End date
+      selector: {date: {}}

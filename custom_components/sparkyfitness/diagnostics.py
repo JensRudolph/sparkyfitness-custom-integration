@@ -13,6 +13,7 @@ from .const import (
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
     CONF_ENABLE_GOALS,
+    CONF_ENABLE_HABITS,
     CONF_ENABLE_NUTRITION,
     CONF_ENABLE_TRENDS,
     CONF_UPDATE_INTERVAL,
@@ -44,6 +45,7 @@ async def async_get_config_entry_diagnostics(
             "engagement": coordinator.feature_enabled(CONF_ENABLE_ENGAGEMENT),
             "goals": coordinator.feature_enabled(CONF_ENABLE_GOALS),
             "trends": coordinator.feature_enabled(CONF_ENABLE_TRENDS),
+            "habits": coordinator.feature_enabled(CONF_ENABLE_HABITS),
         },
         "update_interval_minutes": entry.options.get(
             CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL

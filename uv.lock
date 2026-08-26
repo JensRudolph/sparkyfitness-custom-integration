@@ -2283,7 +2283,7 @@ wheels = [
 
 [[package]]
 name = "sparkyfitness-homeassistant"
-version = "0.1.0"
+version = "0.3.0"
 source = { virtual = "." }
 
 [package.optional-dependencies]
