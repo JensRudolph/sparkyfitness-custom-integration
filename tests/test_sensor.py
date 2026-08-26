@@ -1,5 +1,8 @@
 """Tests for capability-gated sensor descriptions."""
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
 from custom_components.sparkyfitness.const import (
     CONF_ENABLE_GOALS,
     CONF_ENABLE_TRENDS,
@@ -8,7 +11,14 @@ from custom_components.sparkyfitness.const import (
     TOOL_HEALTH_SUMMARY,
     TOOL_NUTRITION_SUMMARY,
 )
-from custom_components.sparkyfitness.sensor import SENSORS
+from custom_components.sparkyfitness.models import SparkyFitnessData
+from custom_components.sparkyfitness.sensor import (
+    HABIT_ANALYTICS_SENSORS,
+    SENSORS,
+    SparkyFitnessHabitAnalyticsSensor,
+)
+
+HABIT_ID = "11111111-1111-1111-1111-111111111111"
 
 
 def test_goal_and_trend_sensors_are_capability_gated() -> None:
@@ -68,3 +78,37 @@ def test_optional_micronutrient_sensors_are_disabled_by_default() -> None:
         description = descriptions[key]
         assert description.required_tools == frozenset({TOOL_NUTRITION_SUMMARY})
         assert description.entity_registry_enabled_default is False
+
+
+def test_habit_analytics_are_optional_named_and_auditable() -> None:
+    """Dynamic metrics expose their tracked-day denominator and follow renames."""
+
+    coordinator = MagicMock()
+    coordinator.config_entry = SimpleNamespace(entry_id="entry-1", options={}, data={})
+    coordinator.client.server_version = "1.6.3"
+    coordinator.client.endpoint = "https://sparky.example.com/mcp"
+    coordinator.last_update_success = True
+    coordinator.data = SparkyFitnessData(
+        habits={
+            HABIT_ID: {
+                "name": "Walk",
+                "completion_rate_7d": 75.0,
+                "completed_days_7d": 3,
+                "tracked_days_7d": 4,
+                "analytics_available": True,
+            }
+        }
+    )
+    description = next(
+        item for item in HABIT_ANALYTICS_SENSORS if item.key == "completion_7d"
+    )
+    entity = SparkyFitnessHabitAnalyticsSensor(coordinator, HABIT_ID, description)
+
+    assert description.entity_registry_enabled_default is False
+    assert entity.translation_placeholders == {"habit_name": "Walk"}
+    assert entity.native_value == 75.0
+    assert entity.extra_state_attributes == {
+        "habit_id": HABIT_ID,
+        "completed_days": 3,
+        "tracked_days": 4,
+    }

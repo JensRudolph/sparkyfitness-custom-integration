@@ -33,17 +33,22 @@ Home Assistant
   SSE responses, protocol/session headers, timeouts, and explicit error mapping.
 - Runtime tool discovery: optional features disappear cleanly when a server does
   not expose their tool.
-- Five-minute coordinated polling by default, configurable from 1–60 minutes.
+- Five-minute coordinated polling by default, configurable from 1–60 minutes;
+  sections without an enabled consuming entity are skipped.
 - Independent polling sections: a check-in failure does not discard valid
   nutrition or engagement data.
 - Current goal sensors and structured 30-day aggregate sensors, with slower
   polling for those more expensive data sets.
+- A native read-only workout calendar backed by the bounded exercise diary.
+- Optional per-habit 7-/30-day completion and streak sensors with auditable
+  denominators and hourly caching.
 - ID-scoped update/delete actions for food and exercise diary entries, with an
   explicit confirmation field for permanent deletion.
 - Multiple SparkyFitness accounts/instances. Actions automatically target the
   only loaded entry, or accept `config_entry_id` when several entries exist.
 - API-key reauthentication without deleting the config entry.
 - Reconfiguration of the MCP URL and TLS policy without recreating entities.
+- Optional technical connection, refresh-time, and partial-failure diagnostics.
 - English and German UI/entity translations.
 - HACS-ready repository layout and manual installation support.
 
@@ -179,13 +184,27 @@ Missing data remains unknown; it is never estimated or replaced with zero.
 | `fasting_progress` | locally calculated for protocols such as `16:8` | % |
 | `binary_sensor.sparkyfitness_fasting_goal_reached` | locally calculated for protocols such as `16:8` | on/off |
 | `binary_sensor.sparkyfitness_<habit>` | `sparky_manage_habits` | on/off |
+| `<habit>_completion_7d` | explicit tracked habit days | % |
+| `<habit>_completion_30d` | explicit tracked habit days | % |
+| `<habit>_streak` | consecutive completed calendar days | days |
+| `calendar.sparkyfitness_workouts` | bounded `sparky_get_exercise_diary` reads | events |
+| `binary_sensor.sparkyfitness_connection` | latest coordinator result | on/off |
+| `last_successful_refresh` | local coordinator metadata | timestamp |
+| `failed_polling_sections` | local technical metadata | count |
 
 Goal progress and remaining-amount sensors are also available for calories,
 protein, carbohydrates, fat, and water. They are disabled by default in the
 entity registry to avoid unnecessary entity clutter. Fiber, sugar, sodium, and
 potassium sensors are likewise available but disabled by default. Habit entities
-retain only today's compact state and stable habit ID, never the full completion
-history.
+retain only today's compact state and stable habit ID. Habit analytics are also
+disabled by default; when enabled, they fetch at most a bounded 30-day history
+per hour and store only derived rates, counts, and streak metadata in entity
+state.
+
+The workout calendar is read-only. Calendar range requests are translated to
+bounded exercise-diary reads, and the entity refreshes its next event every 15
+minutes. Workout summaries and notes displayed by the calendar can be recorded
+by Home Assistant like other calendar state.
 
 All entities belong to one virtual **SparkyFitness** device per config entry. The
 MCP server version from the initialize response is shown as the software version
@@ -375,16 +394,18 @@ fast; the current MCP has no mutation action for that operation.
 The coordinator uses the dedicated nutrition-summary tool for true daily food and
 supplement totals. The health summary supplies hydration, weight, and exercise
 totals. Check-in, fasting, and streak sections are fetched only when their tools
-and feature groups are active. Goals are refreshed at most every 30 minutes and
-30-day aggregates at most hourly, unless a relevant write or manual refresh
-invalidates that cache.
+and feature groups are active and at least one corresponding entity is enabled.
+Goals are refreshed at most every 30 minutes and 30-day aggregates at most
+hourly, unless a relevant write or manual refresh invalidates that cache. Newly
+created entries receive their initial data before entity-demand filtering begins.
 
 When habit sensors are enabled, the coordinator caches the habit catalog for one
 hour and reads today's state for each habit with at most four concurrent MCP
 calls. A partial history failure preserves the last state while marking only the
 affected habit unavailable. Renames and authoritative deletions are reflected in
-the entity registry. Disable habit sensors if this additional polling is not
-wanted.
+the entity registry. Enabled analytics share the same four-call concurrency limit,
+refresh at most hourly, and become unavailable independently of today's binary
+state. Disable habit sensors if this additional polling is not wanted.
 
 Optional section errors are isolated. A total communication failure marks
 coordinator entities unavailable while retaining their last state. The next
@@ -429,6 +450,8 @@ flow in Home Assistant. Do not delete the integration.
 
 Home Assistant also creates repair issues for rejected authentication,
 unverified MCP protocol versions, and tools missing from enabled feature groups.
+The missing-tool repair can disable only the affected local feature switches and
+reload the entry after confirmation; it never changes SparkyFitness or the MCP.
 
 ### TLS error
 
@@ -473,9 +496,13 @@ Upgrade SparkyFitness; the integration does not fall back to private APIs.
   structured JSON. Priority check-in sensors therefore still use the upstream
   Markdown projection; the isolated parser can be replaced when such a tool is
   added upstream.
-- Medication, coaching, image-analysis, profile mutation, and full diary/history
-  payloads are intentionally not entities. Reviewed diary/history reads are
-  transient action responses instead.
+- Exercise diary timestamps carrying an explicit offset retain it. Date-only or
+  naive workout times are interpreted in Home Assistant's configured time zone,
+  because the existing diary response does not provide a separate user-zone field.
+- Medication, coaching, image-analysis, and profile mutation are intentionally
+  not entities. Full food/exercise/habit history payloads are not stored as entity
+  attributes; calendar reads are bounded and habit entities retain only compact
+  7-/30-day derivatives.
 
 ## MCP compatibility verification
 
@@ -512,14 +539,15 @@ platform-independent subset can run locally; GitHub Actions runs the complete
 mocked suite automatically.
 
 GitHub Actions runs Ruff, a coverage-gated complete mocked test suite, HACS
-validation, and hassfest validation. A semantic version tag such as `v0.3.1`
+validation, and hassfest validation. A semantic version tag such as `v0.4.0`
 creates a release only after all four checks pass and the tag matches the manifest
 version.
 
 The tests use mocks only and require no real SparkyFitness URL or API key. They
 cover config and reconfigure flow errors, MCP discovery/calls/SSE/errors/timeouts,
-coordinator partial/total failure, time-zone defaults, habit caching and recovery,
-privacy diagnostics, repair issues, output parsing, release metadata, and the key
+coordinator partial/total failure, entity-demand polling, time-zone defaults,
+habit analytics caching and recovery, workout calendar ranges, privacy
+diagnostics, repair flows, output parsing, release metadata, and the key
 write/update/delete actions.
 
 ## License

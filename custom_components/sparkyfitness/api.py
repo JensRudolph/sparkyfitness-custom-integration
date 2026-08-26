@@ -223,8 +223,7 @@ class SparkyFitnessMcpClient:
                     f'The connected SparkyFitness server does not expose "{name}"'
                 )
             refreshed_schema = (
-                self.tools[name].input_schema.get("properties", {})
-                .get("action", {})
+                self.tools[name].input_schema.get("properties", {}).get("action", {})
             )
             refreshed_actions = refreshed_schema.get("enum")
             if isinstance(refreshed_actions, list) and action not in refreshed_actions:

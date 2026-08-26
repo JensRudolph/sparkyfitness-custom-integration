@@ -174,9 +174,7 @@ class SparkyFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(
                         CONF_URL,
-                        default=(user_input or {}).get(
-                            CONF_URL, entry.data[CONF_URL]
-                        ),
+                        default=(user_input or {}).get(CONF_URL, entry.data[CONF_URL]),
                     ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
                     vol.Required(
                         CONF_VERIFY_SSL,

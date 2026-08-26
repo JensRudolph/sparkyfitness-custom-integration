@@ -7,9 +7,9 @@ from typing import Final
 
 DOMAIN: Final = "sparkyfitness"
 NAME: Final = "SparkyFitness"
-INTEGRATION_VERSION: Final = "0.3.1"
+INTEGRATION_VERSION: Final = "0.4.0"
 
-PLATFORMS: Final = ["sensor", "binary_sensor"]
+PLATFORMS: Final = ["sensor", "binary_sensor", "calendar"]
 
 CONF_API_KEY: Final = "api_key"
 CONF_ACCOUNT_NAME: Final = "account_name"

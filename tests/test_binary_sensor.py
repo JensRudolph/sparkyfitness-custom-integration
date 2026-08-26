@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from custom_components.sparkyfitness.binary_sensor import (
+    SparkyFitnessConnectionBinarySensor,
     SparkyFitnessHabitBinarySensor,
 )
 from custom_components.sparkyfitness.models import SparkyFitnessData
@@ -65,4 +66,19 @@ def test_unlogged_habit_is_off_but_distinguishable_from_a_failed_poll() -> None:
     assert entity.extra_state_attributes == {
         "habit_id": HABIT_ID,
         "logged_today": False,
+    }
+
+
+def test_connection_diagnostic_remains_visible_during_failure() -> None:
+    """Connectivity is represented as off instead of hiding as unavailable."""
+
+    coordinator = _coordinator({"name": "Walk"})
+    coordinator.last_update_success = False
+    coordinator.last_error_class = "SparkyFitnessConnectionError"
+    entity = SparkyFitnessConnectionBinarySensor(coordinator)
+
+    assert entity.available is True
+    assert entity.is_on is False
+    assert entity.extra_state_attributes == {
+        "last_error": "SparkyFitnessConnectionError"
     }

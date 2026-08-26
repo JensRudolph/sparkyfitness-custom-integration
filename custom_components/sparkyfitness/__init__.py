@@ -80,6 +80,7 @@ async def async_setup_entry(
     await hass.config_entries.async_forward_entry_setups(
         entry, [Platform(platform) for platform in PLATFORMS]
     )
+    coordinator.activate_entity_demand()
     return True
 
 

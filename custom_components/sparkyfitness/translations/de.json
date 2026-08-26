@@ -87,9 +87,15 @@
       "avg_mood_30d": {"name": "Durchschnittliche Stimmung (30 Tage)"},
       "avg_sleep_duration_30d": {"name": "Durchschnittliche Schlafdauer (30 Tage)"},
       "avg_sleep_score_30d": {"name": "Durchschnittlicher Schlafwert (30 Tage)"},
-      "weight_entries_30d": {"name": "Gewichtseinträge (30 Tage)"}
+      "weight_entries_30d": {"name": "Gewichtseinträge (30 Tage)"},
+      "habit_completion_7d": {"name": "{habit_name} Erfüllung (7 Tage)"},
+      "habit_completion_30d": {"name": "{habit_name} Erfüllung (30 Tage)"},
+      "habit_streak": {"name": "{habit_name} Serie"},
+      "last_successful_refresh": {"name": "Letzte erfolgreiche Aktualisierung"},
+      "failed_polling_sections": {"name": "Fehlgeschlagene Abfragebereiche"}
     },
-    "binary_sensor": {"fasting": {"name": "Fasten"}, "fasting_goal_reached": {"name": "Fastenziel erreicht"}}
+    "binary_sensor": {"fasting": {"name": "Fasten"}, "fasting_goal_reached": {"name": "Fastenziel erreicht"}, "connection": {"name": "Verbindung"}},
+    "calendar": {"workouts": {"name": "Training"}}
   },
   "exceptions": {
     "authentication_failed": {"message": "Die SparkyFitness-Authentifizierung ist fehlgeschlagen."},
@@ -111,7 +117,14 @@
     "unknown_action": {"message": "Unbekannte SparkyFitness-Aktion: {action}"}
   },
   "issues": {
-    "missing_tools": {"title": "Aktivierte SparkyFitness-Funktionen sind nicht verfügbar", "description": "Der verbundene MCP-Server stellt folgende Werkzeuge für aktivierte Funktionsgruppen nicht bereit: {tools}. Aktualisiere SparkyFitness oder deaktiviere die betroffenen Funktionsgruppen in den Integrationsoptionen."},
+    "missing_tools": {
+      "title": "Aktivierte SparkyFitness-Funktionen sind nicht verfügbar",
+      "description": "Der verbundene MCP-Server stellt folgende Werkzeuge für aktivierte Funktionsgruppen nicht bereit: {tools}. Aktualisiere SparkyFitness oder deaktiviere über Reparieren nur die betroffenen Funktionsgruppen.",
+      "fix_flow": {
+        "step": {"confirm": {"title": "Nicht verfügbare SparkyFitness-Funktionen deaktivieren", "description": "Folgende Funktionsgruppen benötigen Werkzeuge, die der MCP-Server nicht bereitstellt: {features}. Fahre fort, um nur diese Gruppen zu deaktivieren und die Integration neu zu laden."}},
+        "abort": {"entry_not_found": "Der SparkyFitness-Konfigurationseintrag existiert nicht mehr."}
+      }
+    },
     "unsupported_protocol": {"title": "Ungeprüfte MCP-Protokollversion", "description": "Der Server hat MCP-Protokollversion {version} ausgehandelt, die von dieser Integration noch nicht geprüft wurde. Aktualisiere die Integration oder verwende eine unterstützte SparkyFitness-Version."},
     "authentication_failed": {"title": "SparkyFitness-Authentifizierung fehlgeschlagen", "description": "Der API-Schlüssel wurde abgelehnt oder widerrufen. Öffne die SparkyFitness-Integration und führe die erneute Authentifizierung durch."}
   }

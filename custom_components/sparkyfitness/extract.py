@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, timedelta
 from typing import Any
 
 from .exceptions import SparkyFitnessMcpError
@@ -64,7 +65,18 @@ def parse_nutrition_summary(text: str) -> dict[str, Any]:
     if not isinstance(payload, list):
         raise SparkyFitnessMcpError("Nutrition summary was not a JSON array")
     if not payload:
-        return dict.fromkeys(("calories_today", "protein_today", "carbs_today", "fat_today", "fiber_today", "sugar_today", "sodium_today", "potassium_today"))
+        return dict.fromkeys(
+            (
+                "calories_today",
+                "protein_today",
+                "carbs_today",
+                "fat_today",
+                "fiber_today",
+                "sugar_today",
+                "sodium_today",
+                "potassium_today",
+            )
+        )
 
     row = payload[-1]
     if not isinstance(row, dict):
@@ -230,7 +242,9 @@ def parse_habit_completion(text: str, entry_date: str) -> bool | None:
     if not text.lstrip().startswith("# Habit History"):
         raise SparkyFitnessMcpError("Habit history response had an unexpected format")
     date_pattern = (
-        r"\d{4}-\d{2}-\d{2}" if entry_date.casefold() == "today" else re.escape(entry_date)
+        r"\d{4}-\d{2}-\d{2}"
+        if entry_date.casefold() == "today"
+        else re.escape(entry_date)
     )
     match = re.search(
         rf"^{date_pattern}:\s*(?:✅\s*)?(Completed)|"
@@ -241,3 +255,47 @@ def parse_habit_completion(text: str, entry_date: str) -> bool | None:
     if match is None:
         return None
     return match.group(1) is not None
+
+
+def parse_habit_history(text: str) -> dict[date, bool]:
+    """Parse explicit completed and missed dates from a habit history."""
+
+    if not text.lstrip().startswith("# Habit History"):
+        raise SparkyFitnessMcpError("Habit history response had an unexpected format")
+    return {
+        date.fromisoformat(match.group("date")): match.group("completed") is not None
+        for match in re.finditer(
+            r"^(?P<date>\d{4}-\d{2}-\d{2}):\s*"
+            r"(?:(?:✅\s*)?(?P<completed>Completed)|(?:❌\s*)?Missed)",
+            text,
+            re.MULTILINE,
+        )
+    }
+
+
+def habit_history_metrics(history: dict[date, bool], end_date: date) -> dict[str, Any]:
+    """Calculate transparent 7/30-day rates and a calendar-day streak."""
+
+    result: dict[str, Any] = {}
+    for days in (7, 30):
+        start_date = end_date - timedelta(days=days - 1)
+        tracked = [
+            completed
+            for entry_date, completed in history.items()
+            if start_date <= entry_date <= end_date
+        ]
+        completed_days = sum(tracked)
+        result[f"completion_rate_{days}d"] = (
+            round(completed_days / len(tracked) * 100, 1) if tracked else None
+        )
+        result[f"completed_days_{days}d"] = completed_days
+        result[f"tracked_days_{days}d"] = len(tracked)
+
+    streak_anchor = end_date if end_date in history else end_date - timedelta(days=1)
+    streak = 0
+    while history.get(streak_anchor) is True:
+        streak += 1
+        streak_anchor -= timedelta(days=1)
+    result["habit_streak"] = streak
+    result["latest_tracked_date"] = max(history).isoformat() if history else None
+    return result

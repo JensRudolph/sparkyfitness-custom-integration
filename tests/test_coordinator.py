@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -103,7 +104,9 @@ async def test_partial_failure_keeps_other_sections(hass) -> None:
     assert data.section_errors == {"checkin": "SparkyFitnessConnectionError"}
 
 
-async def test_partial_section_outage_and_recovery_are_logged_once(hass, caplog) -> None:
+async def test_partial_section_outage_and_recovery_are_logged_once(
+    hass, caplog
+) -> None:
     """Repeated partial errors do not flood logs and recovery is visible."""
 
     client = _client()
@@ -234,7 +237,9 @@ async def test_habit_states_are_read_without_storing_history(hass) -> None:
     )
 
 
-async def test_partial_habit_failure_preserves_state_and_uses_cached_catalog(hass) -> None:
+async def test_partial_habit_failure_preserves_state_and_uses_cached_catalog(
+    hass,
+) -> None:
     """A transient history error never turns a completed habit off."""
 
     habit_id = "11111111-1111-1111-1111-111111111111"
@@ -259,7 +264,9 @@ async def test_partial_habit_failure_preserves_state_and_uses_cached_catalog(has
     client.async_list_habits.assert_awaited_once()
 
 
-async def test_authoritative_habit_catalog_refresh_tracks_rename_and_removal(hass) -> None:
+async def test_authoritative_habit_catalog_refresh_tracks_rename_and_removal(
+    hass,
+) -> None:
     """The hourly catalog refresh updates names and drops removed habits."""
 
     habit_id = "11111111-1111-1111-1111-111111111111"
@@ -286,3 +293,82 @@ async def test_authoritative_habit_catalog_refresh_tracks_rename_and_removal(has
     coordinator._habit_catalog_updated_at = datetime.now(UTC) - timedelta(hours=2)
     removed = await coordinator._async_update_data()
     assert removed.habits == {}
+
+
+async def test_disabled_entities_do_not_trigger_their_polling_sections(hass) -> None:
+    """The entity registry controls MCP demand after platform setup."""
+
+    client = _client()
+    entry = _entry(hass)
+    coordinator = SparkyFitnessCoordinator(hass, entry, client)
+    coordinator.register_poll_demand(
+        "sensor", "calories_today", frozenset({"nutrition"})
+    )
+    registry = er.async_get(hass)
+    registry_entry = registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{entry.entry_id}_calories_today",
+        suggested_object_id="sparkyfitness_calories_today",
+        config_entry=entry,
+        disabled_by=er.RegistryEntryDisabler.INTEGRATION,
+    )
+    coordinator.activate_entity_demand()
+
+    await coordinator._async_update_data()
+    client.async_get_nutrition_summary.assert_not_awaited()
+    client.async_get_today_summary.assert_not_awaited()
+
+    registry.async_update_entity(registry_entry.entity_id, disabled_by=None)
+    data = await coordinator._async_update_data()
+    assert data.values["calories_today"] == 1800
+    client.async_get_nutrition_summary.assert_awaited_once()
+    client.async_get_today_summary.assert_not_awaited()
+
+
+async def test_enabled_habit_analytics_are_cached_and_auditable(hass) -> None:
+    """Optional habit metrics fetch one bounded history and expose denominators."""
+
+    habit_id = "11111111-1111-1111-1111-111111111111"
+    client = _client()
+    client.tools[TOOL_HABITS] = object()
+    client.async_list_habits = AsyncMock(
+        return_value=f"# Available Habits\n\n**Walk**\n  ID: {habit_id}"
+    )
+    client.async_get_habit_history = AsyncMock(
+        side_effect=[
+            "# Habit History\n\n2026-08-26: ✅ Completed",
+            "# Habit History\n\n"
+            "2026-08-26: ✅ Completed\n"
+            "2026-08-25: ✅ Completed\n"
+            "2026-08-24: ❌ Missed",
+            "# Habit History\n\n2026-08-26: ✅ Completed",
+        ]
+    )
+    entry = _entry(hass)
+    er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{entry.entry_id}_habit_{habit_id}_completion_7d",
+        suggested_object_id="walk_completion_7d",
+        config_entry=entry,
+    )
+    coordinator = SparkyFitnessCoordinator(hass, entry, client)
+
+    with patch(
+        "custom_components.sparkyfitness.coordinator.dt_util.now",
+        return_value=datetime(2026, 8, 26, tzinfo=UTC),
+    ):
+        first = await coordinator._async_update_data()
+        coordinator.data = first
+        second = await coordinator._async_update_data()
+
+    assert first.habits[habit_id]["completion_rate_7d"] == pytest.approx(66.7)
+    assert first.habits[habit_id]["tracked_days_7d"] == 3
+    assert first.habits[habit_id]["habit_streak"] == 2
+    assert second.habits[habit_id]["completion_rate_7d"] == pytest.approx(66.7)
+    assert client.async_get_habit_history.await_count == 3
+    assert client.async_get_habit_history.await_args_list[1].kwargs == {
+        "start_date": "2026-07-28",
+        "end_date": "today",
+    }

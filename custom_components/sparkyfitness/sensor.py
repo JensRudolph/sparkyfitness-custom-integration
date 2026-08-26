@@ -15,12 +15,14 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    EntityCategory,
     UnitOfEnergy,
     UnitOfMass,
     UnitOfTime,
     UnitOfVolume,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import (
@@ -28,11 +30,14 @@ from .const import (
     CONF_ENABLE_ENGAGEMENT,
     CONF_ENABLE_EXERCISE,
     CONF_ENABLE_GOALS,
+    CONF_ENABLE_HABITS,
     CONF_ENABLE_NUTRITION,
     CONF_ENABLE_TRENDS,
+    DOMAIN,
     TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
     TOOL_GOAL_SNAPSHOT,
+    TOOL_HABITS,
     TOOL_HEALTH_SUMMARY,
     TOOL_NUTRITION_SUMMARY,
     TOOL_STREAK,
@@ -57,6 +62,23 @@ class SparkyFitnessFastingSensorDescription(SensorEntityDescription):
     """Describe a value calculated from the active fasting status."""
 
     metric_key: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class SparkyFitnessHabitAnalyticsDescription(SensorEntityDescription):
+    """Describe one optional analytical value for every habit."""
+
+    metric_key: str
+
+
+_TOOL_SECTIONS = {
+    TOOL_HEALTH_SUMMARY: "summary",
+    TOOL_NUTRITION_SUMMARY: "nutrition",
+    TOOL_CHECKIN: "checkin",
+    TOOL_STREAK: "streak",
+    TOOL_GOAL_SNAPSHOT: "goals",
+    TOOL_30_DAY_TRENDS: "trends",
+}
 
 
 def _remaining(data: dict[str, Any], current_key: str, goal_key: str) -> Any:
@@ -456,6 +478,36 @@ FASTING_SENSORS: tuple[SparkyFitnessFastingSensorDescription, ...] = (
     ),
 )
 
+HABIT_ANALYTICS_SENSORS: tuple[SparkyFitnessHabitAnalyticsDescription, ...] = (
+    SparkyFitnessHabitAnalyticsDescription(
+        key="completion_7d",
+        translation_key="habit_completion_7d",
+        icon="mdi:calendar-week",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        metric_key="completion_rate_7d",
+    ),
+    SparkyFitnessHabitAnalyticsDescription(
+        key="completion_30d",
+        translation_key="habit_completion_30d",
+        icon="mdi:calendar-month",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        metric_key="completion_rate_30d",
+    ),
+    SparkyFitnessHabitAnalyticsDescription(
+        key="streak",
+        translation_key="habit_streak",
+        icon="mdi:calendar-check",
+        native_unit_of_measurement=UnitOfTime.DAYS,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,
+        metric_key="habit_streak",
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -466,7 +518,7 @@ async def async_setup_entry(
 
     coordinator = entry.runtime_data.coordinator
     available_tools = coordinator.client.tools.keys()
-    async_add_entities(
+    supported_sensors = [
         SparkyFitnessSensor(coordinator, description)
         for description in SENSORS
         if (
@@ -479,7 +531,8 @@ async def async_setup_entry(
             coordinator.feature_enabled(option)
             for option in description.additional_feature_options
         )
-    )
+    ]
+    async_add_entities(supported_sensors)
     if TOOL_CHECKIN in available_tools and coordinator.feature_enabled(
         CONF_ENABLE_CHECKIN
     ):
@@ -487,6 +540,65 @@ async def async_setup_entry(
             SparkyFitnessFastingSensor(coordinator, description)
             for description in FASTING_SENSORS
         )
+
+    diagnostic_entities: list[SensorEntity] = [
+        SparkyFitnessLastSuccessfulRefreshSensor(coordinator),
+        SparkyFitnessFailedSectionsSensor(coordinator),
+    ]
+    async_add_entities(diagnostic_entities)
+
+    if TOOL_HABITS not in available_tools or not coordinator.feature_enabled(
+        CONF_ENABLE_HABITS
+    ):
+        return
+
+    habit_entities: dict[tuple[str, str], SparkyFitnessHabitAnalyticsSensor] = {}
+
+    async def async_remove_habit_analytics(
+        entity: SparkyFitnessHabitAnalyticsSensor,
+    ) -> None:
+        """Remove disabled or enabled analytics after a catalog deletion."""
+
+        if entity.hass is not None and entity.entity_id:
+            await entity.async_remove()
+        registry = er.async_get(hass)
+        entity_id = registry.async_get_entity_id("sensor", DOMAIN, entity.unique_id)
+        if entity_id:
+            registry.async_remove(entity_id)
+
+    @callback
+    def async_sync_habit_analytics() -> None:
+        """Create optional analytics for new habits and remove deleted ones."""
+
+        current_ids = set(coordinator.data.habits)
+        wanted = {
+            (habit_id, description.key)
+            for habit_id in current_ids
+            for description in HABIT_ANALYTICS_SENSORS
+        }
+        new_entities = [
+            SparkyFitnessHabitAnalyticsSensor(coordinator, habit_id, description)
+            for habit_id, metric_key in sorted(wanted - set(habit_entities))
+            for description in HABIT_ANALYTICS_SENSORS
+            if description.key == metric_key
+        ]
+        if new_entities:
+            habit_entities.update(
+                {
+                    (entity.habit_id, entity.entity_description.key): entity
+                    for entity in new_entities
+                }
+            )
+            async_add_entities(new_entities)
+        for key in set(habit_entities) - wanted:
+            entity = habit_entities.pop(key)
+            hass.async_create_task(
+                async_remove_habit_analytics(entity),
+                f"Remove deleted SparkyFitness habit analytics {key[0]}",
+            )
+
+    async_sync_habit_analytics()
+    entry.async_on_unload(coordinator.async_add_listener(async_sync_habit_analytics))
 
 
 class SparkyFitnessSensor(SparkyFitnessEntity, SensorEntity):
@@ -501,6 +613,16 @@ class SparkyFitnessSensor(SparkyFitnessEntity, SensorEntity):
 
         super().__init__(coordinator, description.key)
         self.entity_description = description
+        coordinator.register_poll_demand(
+            "sensor",
+            description.key,
+            frozenset(
+                _TOOL_SECTIONS[tool]
+                for tool in description.required_tools
+                if tool in _TOOL_SECTIONS
+            ),
+            enabled_default=description.entity_registry_enabled_default,
+        )
 
     @property
     def native_value(self) -> Any:
@@ -521,6 +643,12 @@ class SparkyFitnessFastingSensor(SparkyFitnessEntity, SensorEntity):
 
         super().__init__(coordinator, description.key)
         self.entity_description = description
+        coordinator.register_poll_demand(
+            "sensor",
+            description.key,
+            frozenset({"fasting"}),
+            enabled_default=description.entity_registry_enabled_default,
+        )
 
     @property
     def native_value(self) -> Any:
@@ -529,3 +657,121 @@ class SparkyFitnessFastingSensor(SparkyFitnessEntity, SensorEntity):
         return fasting_metrics(self.coordinator.data.fasting).get(
             self.entity_description.metric_key
         )
+
+
+class SparkyFitnessHabitAnalyticsSensor(SparkyFitnessEntity, SensorEntity):
+    """Expose an optional cached completion metric for one habit."""
+
+    entity_description: SparkyFitnessHabitAnalyticsDescription
+
+    def __init__(self, coordinator, habit_id: str, description) -> None:
+        """Initialize a disabled-by-default habit analytics sensor."""
+
+        super().__init__(coordinator, f"habit_{habit_id}_{description.key}")
+        self._habit_id = habit_id
+        self.entity_description = description
+
+    @property
+    def habit_id(self) -> str:
+        """Return the stable source habit ID."""
+
+        return self._habit_id
+
+    @property
+    def translation_placeholders(self) -> dict[str, str]:
+        """Keep the translated entity name synchronized with habit renames."""
+
+        habit = self.coordinator.data.habits.get(self._habit_id) or {}
+        return {"habit_name": str(habit.get("name") or "Habit")}
+
+    @property
+    def available(self) -> bool:
+        """Expose analytics failures without affecting today's binary state."""
+
+        habit = self.coordinator.data.habits.get(self._habit_id)
+        return (
+            super().available
+            and habit is not None
+            and habit.get("analytics_available", True)
+        )
+
+    @property
+    def native_value(self) -> Any:
+        """Return the cached transparent habit metric."""
+
+        habit = self.coordinator.data.habits.get(self._habit_id) or {}
+        return habit.get(self.entity_description.metric_key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose denominators so completion rates remain auditable."""
+
+        habit = self.coordinator.data.habits.get(self._habit_id) or {}
+        attributes: dict[str, Any] = {"habit_id": self._habit_id}
+        if self.entity_description.key == "completion_7d":
+            attributes.update(
+                completed_days=habit.get("completed_days_7d"),
+                tracked_days=habit.get("tracked_days_7d"),
+            )
+        elif self.entity_description.key == "completion_30d":
+            attributes.update(
+                completed_days=habit.get("completed_days_30d"),
+                tracked_days=habit.get("tracked_days_30d"),
+            )
+        else:
+            attributes["latest_tracked_date"] = habit.get("latest_tracked_date")
+        return attributes
+
+
+class SparkyFitnessLastSuccessfulRefreshSensor(SparkyFitnessEntity, SensorEntity):
+    """Expose the last successful MCP refresh as an optional diagnostic."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_translation_key = "last_successful_refresh"
+    _attr_icon = "mdi:clock-check-outline"
+
+    def __init__(self, coordinator) -> None:
+        """Initialize the diagnostic sensor."""
+
+        super().__init__(coordinator, "last_successful_refresh")
+
+    @property
+    def available(self) -> bool:
+        """Keep the last known success visible during an outage."""
+
+        return True
+
+    @property
+    def native_value(self) -> Any:
+        """Return the technical refresh timestamp without health data."""
+
+        return self.coordinator.last_successful_refresh
+
+
+class SparkyFitnessFailedSectionsSensor(SparkyFitnessEntity, SensorEntity):
+    """Expose the number and names of currently degraded polling sections."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_translation_key = "failed_polling_sections"
+    _attr_icon = "mdi:alert-circle-outline"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator) -> None:
+        """Initialize the diagnostic sensor."""
+
+        super().__init__(coordinator, "failed_polling_sections")
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of partial failures."""
+
+        return len(self.coordinator.data.section_errors)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose only technical section and exception class names."""
+
+        return {"sections": dict(self.coordinator.data.section_errors)}

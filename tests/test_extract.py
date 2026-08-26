@@ -1,12 +1,16 @@
 """Tests for MCP result extraction."""
 
+from datetime import date
+
 from custom_components.sparkyfitness.extract import (
+    habit_history_metrics,
     parse_30_day_trends,
     parse_checkin_diary,
     parse_exercise_search,
     parse_fasting_status,
     parse_goal_snapshot,
     parse_habit_completion,
+    parse_habit_history,
     parse_habit_list,
     parse_health_summary,
     parse_logging_streak,
@@ -169,3 +173,25 @@ def test_parse_habits_and_today_completion() -> None:
         parse_habit_completion("# Habit History\n\n2026-08-27: ✅ Completed", "today")
         is True
     )
+
+
+def test_habit_history_metrics_use_only_explicit_tracked_days() -> None:
+    """Rates never invent misses for days absent from the MCP history."""
+
+    history = parse_habit_history(
+        "# Habit History\n\n"
+        "2026-08-26: ✅ Completed\n"
+        "2026-08-25: ✅ Completed\n"
+        "2026-08-24: ❌ Missed\n"
+        "2026-08-23: ✅ Completed"
+    )
+    assert habit_history_metrics(history, date(2026, 8, 26)) == {
+        "completion_rate_7d": 75.0,
+        "completed_days_7d": 3,
+        "tracked_days_7d": 4,
+        "completion_rate_30d": 75.0,
+        "completed_days_30d": 3,
+        "tracked_days_30d": 4,
+        "habit_streak": 2,
+        "latest_tracked_date": "2026-08-26",
+    }

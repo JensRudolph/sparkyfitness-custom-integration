@@ -10,7 +10,9 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import SparkyFitnessMcpClient
 from .const import (
@@ -38,11 +40,13 @@ from .exceptions import (
     SparkyFitnessError,
 )
 from .extract import (
+    habit_history_metrics,
     parse_30_day_trends,
     parse_checkin_diary,
     parse_fasting_status,
     parse_goal_snapshot,
     parse_habit_completion,
+    parse_habit_history,
     parse_habit_list,
     parse_health_summary,
     parse_logging_streak,
@@ -54,6 +58,7 @@ _LOGGER = logging.getLogger(__name__)
 _GOAL_REFRESH_INTERVAL = timedelta(minutes=30)
 _TRENDS_REFRESH_INTERVAL = timedelta(hours=1)
 _HABIT_CATALOG_REFRESH_INTERVAL = timedelta(hours=1)
+_HABIT_ANALYTICS_REFRESH_INTERVAL = timedelta(hours=1)
 _HABIT_HISTORY_CONCURRENCY = 4
 
 
@@ -77,7 +82,11 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         self._section_updated_at: dict[str, datetime] = {}
         self._habit_catalog: dict[str, dict[str, Any]] = {}
         self._habit_catalog_updated_at: datetime | None = None
+        self._habit_analytics_cache: dict[str, dict[str, Any]] = {}
+        self._habit_analytics_updated_at: dict[str, datetime] = {}
         self._reported_section_errors: set[str] = set()
+        self._poll_demands: dict[tuple[str, str], tuple[frozenset[str], bool]] = {}
+        self._entity_demand_active = False
         interval = int(entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL))
         super().__init__(
             hass,
@@ -92,6 +101,63 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         """Return whether an optional feature group is enabled."""
 
         return bool(self.config_entry.options.get(option, True))
+
+    def register_poll_demand(
+        self,
+        entity_domain: str,
+        key: str,
+        sections: frozenset[str],
+        *,
+        enabled_default: bool = True,
+    ) -> None:
+        """Register which coordinator sections feed one entity."""
+
+        self._poll_demands[(entity_domain, key)] = (sections, enabled_default)
+
+    def activate_entity_demand(self) -> None:
+        """Use the entity registry after all platforms completed setup."""
+
+        self._entity_demand_active = True
+
+    def _entity_enabled(
+        self, entity_domain: str, key: str, *, enabled_default: bool
+    ) -> bool:
+        """Return whether a stable integration entity is actually enabled."""
+
+        registry = er.async_get(self.hass)
+        entity_id = registry.async_get_entity_id(
+            entity_domain,
+            DOMAIN,
+            f"{self.config_entry.entry_id}_{key}",
+        )
+        if entity_id is None:
+            return enabled_default
+        registry_entry = registry.async_get(entity_id)
+        return registry_entry is not None and registry_entry.disabled_by is None
+
+    def _section_requested(self, section: str) -> bool:
+        """Return whether at least one enabled entity consumes a section."""
+
+        if not self._entity_demand_active:
+            return True
+        return any(
+            section in sections
+            and self._entity_enabled(
+                entity_domain, key, enabled_default=enabled_default
+            )
+            for (entity_domain, key), (
+                sections,
+                enabled_default,
+            ) in self._poll_demands.items()
+        )
+
+    def invalidate_habit_analytics(self, habit_id: str | None = None) -> None:
+        """Force habit analytics to refresh after a related write."""
+
+        if habit_id is None:
+            self._habit_analytics_updated_at.clear()
+            return
+        self._habit_analytics_updated_at.pop(habit_id, None)
 
     def invalidate_sections(self, *sections: str) -> None:
         """Force slow-changing sections to refresh on the next update."""
@@ -110,40 +176,50 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
 
         calls: dict[str, Any] = {}
         now = datetime.now(UTC)
-        if TOOL_HEALTH_SUMMARY in self.client.tools and any(
-            self.feature_enabled(option)
-            for option in (
-                CONF_ENABLE_NUTRITION,
-                CONF_ENABLE_EXERCISE,
-                CONF_ENABLE_CHECKIN,
+        if (
+            TOOL_HEALTH_SUMMARY in self.client.tools
+            and self._section_requested("summary")
+            and any(
+                self.feature_enabled(option)
+                for option in (
+                    CONF_ENABLE_NUTRITION,
+                    CONF_ENABLE_EXERCISE,
+                    CONF_ENABLE_CHECKIN,
+                )
             )
         ):
             calls["summary"] = self.client.async_get_today_summary()
         if (
             self.feature_enabled(CONF_ENABLE_NUTRITION)
             and TOOL_NUTRITION_SUMMARY in self.client.tools
+            and self._section_requested("nutrition")
         ):
             calls["nutrition"] = self.client.async_get_nutrition_summary()
         if (
             self.feature_enabled(CONF_ENABLE_CHECKIN)
             and TOOL_CHECKIN in self.client.tools
         ):
-            calls["checkin"] = self.client.async_get_checkin()
-            calls["fasting"] = self.client.async_get_fasting_status()
+            if self._section_requested("checkin"):
+                calls["checkin"] = self.client.async_get_checkin()
+            if self._section_requested("fasting"):
+                calls["fasting"] = self.client.async_get_fasting_status()
         if (
             self.feature_enabled(CONF_ENABLE_ENGAGEMENT)
             and TOOL_STREAK in self.client.tools
+            and self._section_requested("streak")
         ):
             calls["streak"] = self.client.async_get_logging_streak()
         if (
             self.feature_enabled(CONF_ENABLE_GOALS)
             and TOOL_GOAL_SNAPSHOT in self.client.tools
+            and self._section_requested("goals")
             and self._section_due("goals", _GOAL_REFRESH_INTERVAL, now)
         ):
             calls["goals"] = self.client.async_get_goal_snapshot()
         if (
             self.feature_enabled(CONF_ENABLE_TRENDS)
             and TOOL_30_DAY_TRENDS in self.client.tools
+            and self._section_requested("trends")
             and self._section_due("trends", _TRENDS_REFRESH_INTERVAL, now)
         ):
             calls["trends"] = self.client.async_get_30_day_trends()
@@ -160,7 +236,6 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         section_errors: dict[str, str] = {}
 
         if not calls:
-            self.last_successful_refresh = now
             self.last_error_class = None
             self._log_section_transitions({})
             return SparkyFitnessData(values=values, fasting=fasting, habits=habits)
@@ -244,7 +319,7 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
         self._reported_section_errors = failed_sections
 
     async def _async_get_habits(self, entry_date: str) -> HabitPollResult:
-        """Fetch today's state for every habit through reviewed MCP actions."""
+        """Fetch demanded current and analytical habit state with bounded calls."""
 
         now = datetime.now(UTC)
         catalog_failed = False
@@ -273,30 +348,87 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
 
         semaphore = asyncio.Semaphore(_HABIT_HISTORY_CONCURRENCY)
 
-        async def async_get_history(habit_id: str) -> Any:
+        async def async_get_history(
+            habit_id: str, start_date: str, end_date: str
+        ) -> Any:
             async with semaphore:
                 return await self.client.async_get_habit_history(
-                    habit_id, start_date=entry_date, end_date=entry_date
+                    habit_id, start_date=start_date, end_date=end_date
+                )
+
+        analytics_end = dt_util.now().date()
+        analytics_start = analytics_end - timedelta(days=29)
+        requests: list[tuple[str, str, Any]] = []
+        for habit_id, habit in habits.items():
+            previous = (self.data.habits if self.data else {}).get(habit_id) or {}
+            habit["completed"] = previous.get("completed")
+            habit["history_available"] = previous.get("history_available", True)
+
+            current_enabled = self._entity_enabled(
+                "binary_sensor", f"habit_{habit_id}", enabled_default=True
+            )
+            analytics_enabled = any(
+                self._entity_enabled(
+                    "sensor",
+                    f"habit_{habit_id}_{metric}",
+                    enabled_default=False,
+                )
+                for metric in ("completion_7d", "completion_30d", "streak")
+            )
+            if current_enabled:
+                requests.append(
+                    (
+                        habit_id,
+                        "current",
+                        async_get_history(habit_id, entry_date, entry_date),
+                    )
+                )
+            cached_analytics = self._habit_analytics_cache.get(habit_id)
+            if analytics_enabled and cached_analytics:
+                habit.update(cached_analytics)
+                habit["analytics_available"] = True
+            analytics_updated_at = self._habit_analytics_updated_at.get(habit_id)
+            analytics_due = analytics_enabled and (
+                analytics_updated_at is None
+                or now - analytics_updated_at >= _HABIT_ANALYTICS_REFRESH_INTERVAL
+            )
+            if analytics_due:
+                requests.append(
+                    (
+                        habit_id,
+                        "analytics",
+                        async_get_history(
+                            habit_id, analytics_start.isoformat(), "today"
+                        ),
+                    )
                 )
 
         results = await asyncio.gather(
-            *(async_get_history(habit_id) for habit_id in habits),
-            return_exceptions=True,
+            *(request[2] for request in requests), return_exceptions=True
         )
         failed_ids: set[str] = set()
-        previous_habits = self.data.habits if self.data else {}
-        for habit_id, result in zip(habits, results, strict=True):
+        for (habit_id, request_type, _), result in zip(requests, results, strict=True):
             habit = habits[habit_id]
             if isinstance(result, SparkyFitnessAuthenticationError):
                 raise result
             if isinstance(result, BaseException):
                 failed_ids.add(habit_id)
-                previous = previous_habits.get(habit_id) or {}
-                habit["completed"] = previous.get("completed")
-                habit["history_available"] = False
+                if request_type == "current":
+                    habit["history_available"] = False
+                else:
+                    habit["analytics_available"] = False
                 continue
-            habit["completed"] = parse_habit_completion(str(result), entry_date)
-            habit["history_available"] = True
+            if request_type == "current":
+                habit["completed"] = parse_habit_completion(str(result), entry_date)
+                habit["history_available"] = True
+            else:
+                analytics = habit_history_metrics(
+                    parse_habit_history(str(result)), analytics_end
+                )
+                self._habit_analytics_cache[habit_id] = analytics
+                self._habit_analytics_updated_at[habit_id] = now
+                habit.update(analytics)
+                habit["analytics_available"] = True
         return HabitPollResult(
             habits=habits,
             failed_ids=failed_ids,

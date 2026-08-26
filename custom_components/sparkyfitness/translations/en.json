@@ -87,9 +87,15 @@
       "avg_mood_30d": {"name": "Average mood (30 days)"},
       "avg_sleep_duration_30d": {"name": "Average sleep duration (30 days)"},
       "avg_sleep_score_30d": {"name": "Average sleep score (30 days)"},
-      "weight_entries_30d": {"name": "Weight entries (30 days)"}
+      "weight_entries_30d": {"name": "Weight entries (30 days)"},
+      "habit_completion_7d": {"name": "{habit_name} completion (7 days)"},
+      "habit_completion_30d": {"name": "{habit_name} completion (30 days)"},
+      "habit_streak": {"name": "{habit_name} streak"},
+      "last_successful_refresh": {"name": "Last successful refresh"},
+      "failed_polling_sections": {"name": "Failed polling sections"}
     },
-    "binary_sensor": {"fasting": {"name": "Fasting"}, "fasting_goal_reached": {"name": "Fasting goal reached"}}
+    "binary_sensor": {"fasting": {"name": "Fasting"}, "fasting_goal_reached": {"name": "Fasting goal reached"}, "connection": {"name": "Connection"}},
+    "calendar": {"workouts": {"name": "Workouts"}}
   },
   "exceptions": {
     "authentication_failed": {"message": "SparkyFitness authentication failed."},
@@ -111,7 +117,14 @@
     "unknown_action": {"message": "Unknown SparkyFitness action: {action}"}
   },
   "issues": {
-    "missing_tools": {"title": "Enabled SparkyFitness features are unavailable", "description": "The connected MCP server does not expose these tools required by enabled feature groups: {tools}. Update SparkyFitness or disable the affected feature groups in the integration options."},
+    "missing_tools": {
+      "title": "Enabled SparkyFitness features are unavailable",
+      "description": "The connected MCP server does not expose these tools required by enabled feature groups: {tools}. Update SparkyFitness or use Repair to disable only the affected feature groups.",
+      "fix_flow": {
+        "step": {"confirm": {"title": "Disable unavailable SparkyFitness features", "description": "The following feature groups require tools that the MCP server does not expose: {features}. Continue to disable only these groups and reload the integration."}},
+        "abort": {"entry_not_found": "The SparkyFitness config entry no longer exists."}
+      }
+    },
     "unsupported_protocol": {"title": "Unverified MCP protocol version", "description": "The server negotiated MCP protocol version {version}, which this integration has not verified. Update the integration or use a supported SparkyFitness release."},
     "authentication_failed": {"title": "SparkyFitness authentication failed", "description": "The API key was rejected or revoked. Open the SparkyFitness integration and complete reauthentication."}
   }

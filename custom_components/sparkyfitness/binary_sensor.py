@@ -10,6 +10,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -42,6 +43,8 @@ async def async_setup_entry(
                 SparkyFitnessFastingGoalBinarySensor(coordinator),
             ]
         )
+
+    async_add_entities([SparkyFitnessConnectionBinarySensor(coordinator)])
 
     if TOOL_HABITS not in coordinator.client.tools or not coordinator.feature_enabled(
         CONF_ENABLE_HABITS
@@ -76,9 +79,7 @@ async def async_setup_entry(
             for habit_id in sorted(new_ids)
         ]
         if entities:
-            habit_entities.update(
-                {entity.habit_id: entity for entity in entities}
-            )
+            habit_entities.update({entity.habit_id: entity for entity in entities})
             async_add_entities(entities)
         for habit_id in set(habit_entities) - current_ids:
             entity = habit_entities.pop(habit_id)
@@ -104,6 +105,12 @@ class SparkyFitnessFastingBinarySensor(SparkyFitnessEntity, BinarySensorEntity):
         """Initialize the binary sensor."""
 
         super().__init__(coordinator, self.entity_description.key)
+        coordinator.register_poll_demand(
+            "binary_sensor",
+            self.entity_description.key,
+            frozenset({"fasting"}),
+            enabled_default=self.entity_description.entity_registry_enabled_default,
+        )
 
     @property
     def is_on(self) -> bool:
@@ -150,6 +157,12 @@ class SparkyFitnessFastingGoalBinarySensor(SparkyFitnessEntity, BinarySensorEnti
         """Initialize the fasting target sensor."""
 
         super().__init__(coordinator, self.entity_description.key)
+        coordinator.register_poll_demand(
+            "binary_sensor",
+            self.entity_description.key,
+            frozenset({"fasting"}),
+            enabled_default=self.entity_description.entity_registry_enabled_default,
+        )
 
     @property
     def is_on(self) -> bool | None:
@@ -214,3 +227,35 @@ class SparkyFitnessHabitBinarySensor(SparkyFitnessEntity, BinarySensorEntity):
             "habit_id": self._habit_id,
             "logged_today": habit.get("completed") is not None,
         }
+
+
+class SparkyFitnessConnectionBinarySensor(SparkyFitnessEntity, BinarySensorEntity):
+    """Expose coordinator connectivity without hiding the failed state."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_translation_key = "connection"
+    _attr_icon = "mdi:lan-connect"
+
+    def __init__(self, coordinator) -> None:
+        """Initialize the optional connection diagnostic."""
+
+        super().__init__(coordinator, "connection")
+
+    @property
+    def available(self) -> bool:
+        """Keep the diagnostic entity available during an outage."""
+
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the latest coordinator cycle succeeded."""
+
+        return self.coordinator.last_update_success
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose only the latest technical exception class."""
+
+        return {"last_error": self.coordinator.last_error_class}

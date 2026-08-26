@@ -62,6 +62,8 @@ UUID_VALUE = vol.All(
         r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     ),
 )
+
+
 def _non_empty_string(value: Any) -> str:
     """Return stripped action text and reject blank values."""
 
@@ -544,6 +546,8 @@ def async_register_services(hass: HomeAssistant) -> None:
 
             if service == SERVICE_SET_GOALS:
                 runtime.coordinator.invalidate_sections("goals")
+            elif service == SERVICE_LOG_HABIT:
+                runtime.coordinator.invalidate_habit_analytics(data["habit_id"])
             elif service in {
                 SERVICE_LOG_WEIGHT,
                 SERVICE_LOG_BIOMETRICS,
