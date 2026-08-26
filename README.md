@@ -36,6 +36,10 @@ Home Assistant
 - Five-minute coordinated polling by default, configurable from 1–60 minutes.
 - Independent polling sections: a check-in failure does not discard valid
   nutrition or engagement data.
+- Current goal sensors and structured 30-day aggregate sensors, with slower
+  polling for those more expensive data sets.
+- ID-scoped update/delete actions for food and exercise diary entries, with an
+  explicit confirmation field for permanent deletion.
 - Multiple SparkyFitness accounts/instances. Actions automatically target the
   only loaded entry, or accept `config_entry_id` when several entries exist.
 - API-key reauthentication without deleting the config entry.
@@ -112,6 +116,8 @@ Open the integration's **Configure** dialog to change:
 - Exercise sensors.
 - Check-in sensors.
 - Engagement sensors.
+- Goal sensors.
+- 30-day trend sensors.
 
 Disabling a feature group also prevents its unnecessary MCP polling calls.
 Disabling TLS verification is unsafe: it allows interception of both the API key
@@ -137,6 +143,21 @@ Missing data remains unknown; it is never estimated or replaced with zero.
 | `body_fat` | `sparky_manage_checkin/list_checkin_diary` | % |
 | `exercise_count_today` | `sparky_get_health_summary` | count |
 | `logging_streak` | `sparky_get_logging_streak` | days |
+| `calorie_goal` | `sparky_get_goal_snapshot` | kcal |
+| `protein_goal` | `sparky_get_goal_snapshot` | g |
+| `carbs_goal` | `sparky_get_goal_snapshot` | g |
+| `fat_goal` | `sparky_get_goal_snapshot` | g |
+| `water_goal` | `sparky_get_goal_snapshot` | ml |
+| `food_days_logged_30d` | `sparky_get_30_day_trends` | days |
+| `avg_daily_calories_30d` | `sparky_get_30_day_trends` | kcal |
+| `avg_daily_protein_30d` | `sparky_get_30_day_trends` | g |
+| `workouts_30d` | `sparky_get_30_day_trends` | count |
+| `active_days_30d` | `sparky_get_30_day_trends` | days |
+| `exercise_calories_30d` | `sparky_get_30_day_trends` | kcal |
+| `avg_mood_30d` | `sparky_get_30_day_trends` | 1–10 |
+| `avg_sleep_duration_30d` | `sparky_get_30_day_trends` | h |
+| `avg_sleep_score_30d` | `sparky_get_30_day_trends` | score |
+| `weight_entries_30d` | `sparky_get_30_day_trends` | count |
 | `binary_sensor.sparkyfitness_fasting` | `sparky_manage_checkin/get_fasting_status` | on/off |
 
 All entities belong to one virtual **SparkyFitness** device per config entry. The
@@ -158,15 +179,26 @@ Every action uses a fixed, reviewed MCP mapping. There is deliberately no generi
 | `sparkyfitness.log_sleep` | `sparky_manage_checkin/log_sleep` |
 | `sparkyfitness.log_custom_metric` | `sparky_manage_checkin/log_custom_metric` |
 | `sparkyfitness.log_food` | `sparky_manage_food/log_food` |
+| `sparkyfitness.update_food_entry` | `sparky_manage_food/update_entry` by entry ID |
+| `sparkyfitness.delete_food_entry` | `sparky_manage_food/delete_entry` by entry ID |
 | `sparkyfitness.log_exercise` | `sparky_manage_exercise/log_exercise` |
+| `sparkyfitness.update_exercise_entry` | `sparky_manage_exercise/update_exercise_entry` by entry ID |
+| `sparkyfitness.delete_exercise_entry` | `sparky_manage_exercise/delete_exercise_entry` by entry ID |
 | `sparkyfitness.create_exercise` | `sparky_manage_exercise/create_exercise` |
 | `sparkyfitness.create_workout_preset` | search, then `create_workout_preset` |
 | `sparkyfitness.log_workout_preset` | `sparky_manage_exercise/log_workout_preset` |
 | `sparkyfitness.set_goals` | `sparky_manage_goals/set_goals` |
 | `sparkyfitness.log_habit` | `sparky_manage_habits/log_habit` |
+| `sparkyfitness.start_fasting` | `sparky_manage_checkin/log_fasting` with `ACTIVE` status |
+| `sparkyfitness.log_fasting_window` | `sparky_manage_checkin/log_fasting` with start/end |
 
 After every successful write, the coordinator requests an immediate refresh.
 All action fields and selectors are documented in the Home Assistant action UI.
+
+Update and delete actions deliberately require an exact diary-entry UUID. Delete
+actions additionally require `confirm: true`; names are never resolved or guessed
+for destructive operations. IDs are shown by the corresponding SparkyFitness food
+or exercise diary MCP output.
 
 If multiple SparkyFitness config entries are loaded, add the optional
 `config_entry_id` field. With exactly one loaded entry, it is selected
@@ -266,11 +298,46 @@ data:
 Every name must resolve to exactly one case-insensitive exact search result. If a
 name is missing or ambiguous, nothing is created.
 
+### Correct or delete an exact diary entry
+
+```yaml
+action: sparkyfitness.update_food_entry
+data:
+  entry_id: "11111111-1111-1111-1111-111111111111"
+  quantity: 1.5
+  meal_type: dinner
+```
+
+Permanent deletion requires an explicit confirmation:
+
+```yaml
+action: sparkyfitness.delete_exercise_entry
+data:
+  entry_id: "22222222-2222-2222-2222-222222222222"
+  confirm: true
+```
+
+### Start or record fasting
+
+Start a new active fast at the current Home Assistant time:
+
+```yaml
+action: sparkyfitness.start_fasting
+data:
+  fasting_type: "16:8"
+```
+
+`sparkyfitness.log_fasting_window` records a new completed or cancelled interval
+with explicit start and end timestamps. It does not end or alter an already active
+fast; the current MCP has no mutation action for that operation.
+
 ## Data updates and availability
 
 The coordinator uses a single health-summary request for nutrition, hydration,
 weight, and exercise totals. Check-in, fasting, and streak sections are fetched
-only when their tools and feature groups are active.
+only when their tools and feature groups are active. Goals are refreshed at most
+every 30 minutes and 30-day aggregates at most hourly, unless a relevant write or
+manual refresh invalidates that cache.
 
 Optional section errors are isolated. A total communication failure marks
 coordinator entities unavailable while retaining their last state. The next
@@ -344,6 +411,13 @@ Upgrade SparkyFitness; the integration does not fall back to private APIs.
 - The current MCP has `set_goals`; it does not expose distinct create/update goal
   records. The integration implements the real action as `set_goals` instead of
   inventing `create_goal` or `update_goal`.
+- The current `log_fasting` MCP action always creates a fasting record. It can
+  start a new active fast or record a completed window, but it cannot update/end
+  the already active record. No misleading `end_fasting` action is exposed.
+- No current MCP read tool returns today's biometrics, mood, and sleep together as
+  structured JSON. Priority check-in sensors therefore still use the upstream
+  Markdown projection; the isolated parser can be replaced when such a tool is
+  added upstream.
 - Medication, coaching, image-analysis, profile mutation, and full diary/history
   payloads are intentionally not entities or generic actions in this release.
 
@@ -357,8 +431,9 @@ Development was checked on 2026-08-26 against:
   no generated session ID.
 - A live authenticated SparkyFitness MCP exposing 36 normal-user tools.
 - Read-only live calls for health summary, nutrition summary, daily report,
-  exercise totals, check-in diary, fasting status, logging streak, and profile
-  preferences. Only shapes/types were retained during verification.
+  exercise totals, check-in diary, fasting status, logging streak, goal snapshot,
+  30-day trends, trend analysis, and profile preferences. Only shapes/types were
+  retained during verification.
 
 The official Python MCP SDK was also evaluated. Its current v2 client uses its
 own `httpx2` transport and a broad dependency graph. SparkyFitness's current
@@ -381,8 +456,8 @@ inside WSL, a Linux container, or Home Assistant's development container.
 
 The tests use mocks only and require no real SparkyFitness URL or API key. They
 cover config flow errors, MCP discovery/calls/errors/timeouts/disconnect/reconnect,
-coordinator partial/total failure and recovery, privacy diagnostics, output
-parsing, and the key write actions.
+coordinator partial/total failure, slow-section throttling and recovery, privacy
+diagnostics, output parsing, and the key write/update/delete actions.
 
 ## License
 
