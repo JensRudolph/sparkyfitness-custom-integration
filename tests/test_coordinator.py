@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -79,11 +79,7 @@ async def test_successful_refresh(hass) -> None:
     """All stable priority values are projected and preferred lbs become kg."""
 
     coordinator = SparkyFitnessCoordinator(hass, _entry(hass), _client())
-    with patch(
-        "custom_components.sparkyfitness.coordinator.dt_util.now",
-        return_value=datetime(2026, 8, 26, tzinfo=UTC),
-    ):
-        data = await coordinator._async_update_data()
+    data = await coordinator._async_update_data()
     assert data.values["calories_today"] == 1800
     assert data.values["protein_today"] == 140
     assert data.values["fiber_today"] == 30
@@ -225,11 +221,7 @@ async def test_habit_states_are_read_without_storing_history(hass) -> None:
     )
     coordinator = SparkyFitnessCoordinator(hass, _entry(hass), client)
 
-    with patch(
-        "custom_components.sparkyfitness.coordinator.dt_util.now",
-        return_value=datetime(2026, 8, 26, tzinfo=UTC),
-    ):
-        data = await coordinator._async_update_data()
+    data = await coordinator._async_update_data()
 
     assert data.habits[habit_id] == {
         "id": habit_id,

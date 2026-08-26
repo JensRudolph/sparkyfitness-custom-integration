@@ -15,14 +15,20 @@ from custom_components.sparkyfitness.api import (
     normalize_mcp_endpoint,
 )
 from custom_components.sparkyfitness.const import (
+    TOOL_30_DAY_TRENDS,
     TOOL_CHECKIN,
     TOOL_EXERCISE,
     TOOL_EXERCISE_DIARY,
     TOOL_FOOD,
     TOOL_FOOD_DIARY,
+    TOOL_GOAL_SNAPSHOT,
+    TOOL_GOALS,
     TOOL_HABITS,
+    TOOL_HEALTH_SUMMARY,
+    TOOL_NUTRITION_SUMMARY,
     TOOL_SEARCH_EXERCISES,
     TOOL_SEARCH_FOODS,
+    TOOL_STREAK,
 )
 from custom_components.sparkyfitness.exceptions import (
     SparkyFitnessAuthenticationError,
@@ -357,3 +363,79 @@ async def test_read_wrappers_use_only_advertised_mcp_tools_and_actions() -> None
     assert calls[4]["arguments"] == {"action": "get_workout_presets"}
     assert calls[5]["arguments"] == {"action": "list_habits"}
     assert calls[6]["arguments"]["action"] == "get_habit_history"
+
+
+async def test_priority_and_write_wrappers_preserve_reviewed_arguments() -> None:
+    """Priority reads and common writes cannot drift from reviewed mappings."""
+
+    session = FakeSession(_success_route)
+    client = SparkyFitnessMcpClient(session, "https://example.com", "secret")
+    client._connected = True
+    client.tools = {
+        name: McpTool(name=name, description="", input_schema={})
+        for name in (
+            TOOL_30_DAY_TRENDS,
+            TOOL_CHECKIN,
+            TOOL_EXERCISE,
+            TOOL_FOOD,
+            TOOL_GOAL_SNAPSHOT,
+            TOOL_GOALS,
+            TOOL_HABITS,
+            TOOL_HEALTH_SUMMARY,
+            TOOL_NUTRITION_SUMMARY,
+            TOOL_STREAK,
+        )
+    }
+
+    assert await client.async_get_today_summary() == "ok"
+    assert await client.async_get_nutrition_summary() == "ok"
+    assert await client.async_get_checkin() == "ok"
+    assert await client.async_get_fasting_status() == "ok"
+    assert await client.async_get_logging_streak() == "ok"
+    assert await client.async_get_goal_snapshot() == "ok"
+    assert await client.async_get_30_day_trends() == "ok"
+    await client.async_log_weight(84.7, "kg", "today")
+    await client.async_log_water(750, "today")
+    await client.async_log_mood(8, "today", notes="Good", mood_tags=["calm"])
+    await client.async_log_sleep(
+        "today",
+        duration_seconds=28800,
+        bedtime="22:00",
+        wake_time="06:00",
+        source="watch",
+    )
+    await client.async_log_custom_metric(
+        "Grip", 45.5, "today", unit="kg", notes="Left hand"
+    )
+    await client.async_log_food(food="Oats", quantity=1)
+    await client.async_log_exercise(exercise="Walk", duration_minutes=30)
+    await client.async_create_exercise(name="Carry", category="Strength")
+    await client.async_log_workout_preset(preset_name="Morning")
+    await client.async_set_goals(start_date="today", calorie_goal=2000)
+    await client.async_log_habit(ENTRY_ID, "today", True)
+
+    calls = [request["params"] for request in session.requests]
+    assert [call["name"] for call in calls[:7]] == [
+        TOOL_HEALTH_SUMMARY,
+        TOOL_NUTRITION_SUMMARY,
+        TOOL_CHECKIN,
+        TOOL_CHECKIN,
+        TOOL_STREAK,
+        TOOL_GOAL_SNAPSHOT,
+        TOOL_30_DAY_TRENDS,
+    ]
+    assert calls[9]["arguments"] == {
+        "action": "log_mood",
+        "mood_value": 8,
+        "entry_date": "today",
+        "notes": "Good",
+        "mood_tags": ["calm"],
+    }
+    assert calls[10]["arguments"]["duration_seconds"] == 28800
+    assert calls[11]["arguments"]["category_name"] == "Grip"
+    assert calls[-1]["arguments"] == {
+        "action": "log_habit",
+        "habit_id": ENTRY_ID,
+        "entry_date": "today",
+        "completed": True,
+    }
