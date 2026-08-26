@@ -53,15 +53,9 @@ def async_update_connection_issues(
     """Create or clear compatibility issues after successful discovery."""
 
     missing_options = _missing_feature_options(entry, client)
-    missing_tools = {
-        tool
-        for option, tools in _FEATURE_TOOLS
-        if option in missing_options
-        for tool in tools - client.tools.keys()
-    }
 
     missing_issue_id = f"missing_tools_{entry.entry_id}"
-    if missing_tools:
+    if missing_options:
         ir.async_create_issue(
             hass,
             DOMAIN,
@@ -74,7 +68,6 @@ def async_update_connection_issues(
             learn_more_url=_DOCUMENTATION_URL,
             severity=ir.IssueSeverity.WARNING,
             translation_key="missing_tools",
-            translation_placeholders={"tools": ", ".join(sorted(missing_tools))},
         )
     else:
         ir.async_delete_issue(hass, DOMAIN, missing_issue_id)

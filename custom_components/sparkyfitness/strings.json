@@ -155,7 +155,6 @@
   "issues": {
     "missing_tools": {
       "title": "Enabled SparkyFitness features are unavailable",
-      "description": "The connected MCP server does not expose these tools required by enabled feature groups: {tools}. Update SparkyFitness or use Repair to disable only the affected feature groups.",
       "fix_flow": {
         "step": {
           "confirm": {

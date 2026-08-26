@@ -119,7 +119,6 @@
   "issues": {
     "missing_tools": {
       "title": "Aktivierte SparkyFitness-Funktionen sind nicht verfügbar",
-      "description": "Der verbundene MCP-Server stellt folgende Werkzeuge für aktivierte Funktionsgruppen nicht bereit: {tools}. Aktualisiere SparkyFitness oder deaktiviere über Reparieren nur die betroffenen Funktionsgruppen.",
       "fix_flow": {
         "step": {"confirm": {"title": "Nicht verfügbare SparkyFitness-Funktionen deaktivieren", "description": "Folgende Funktionsgruppen benötigen Werkzeuge, die der MCP-Server nicht bereitstellt: {features}. Fahre fort, um nur diese Gruppen zu deaktivieren und die Integration neu zu laden."}},
         "abort": {"entry_not_found": "Der SparkyFitness-Konfigurationseintrag existiert nicht mehr."}

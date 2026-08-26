@@ -56,6 +56,7 @@ def test_parse_timed_and_all_day_workouts_with_range_filtering() -> None:
 async def test_calendar_fetches_only_requested_diary_range(hass) -> None:
     """Calendar browsing uses the existing bounded exercise diary action."""
 
+    hass.config.set_time_zone("UTC")
     client = MagicMock()
     client.server_version = "1.6.3"
     client.endpoint = "https://sparky.example.com/mcp"
