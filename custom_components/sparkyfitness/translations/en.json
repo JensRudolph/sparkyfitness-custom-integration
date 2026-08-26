@@ -1,0 +1,54 @@
+{
+  "title": "SparkyFitness",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to SparkyFitness",
+        "description": "Enter the SparkyFitness base URL or its /mcp endpoint and a personal API key.",
+        "data": {"url": "SparkyFitness URL", "api_key": "API key", "verify_ssl": "Verify TLS certificate"},
+        "data_description": {"verify_ssl": "Keep enabled unless you understand the security risk of an unverified certificate."}
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate SparkyFitness",
+        "description": "The API key was rejected or revoked. Enter a new personal API key.",
+        "data": {"api_key": "API key"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the SparkyFitness MCP endpoint.",
+      "invalid_auth": "The API key is invalid or was revoked.",
+      "invalid_mcp_server": "The endpoint is not a compatible SparkyFitness MCP server.",
+      "invalid_url": "Enter a valid HTTP or HTTPS URL.",
+      "ssl_error": "TLS certificate verification failed.",
+      "timeout": "The SparkyFitness MCP endpoint timed out.",
+      "unknown": "An unexpected error occurred. Check the logs."
+    },
+    "abort": {"already_configured": "This SparkyFitness account is already configured.", "reauth_successful": "SparkyFitness reauthentication was successful."}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SparkyFitness options",
+        "description": "Disabling TLS verification exposes the API key and health data to interception. Feature switches also prevent their MCP polling calls.",
+        "data": {
+          "update_interval": "Update interval",
+          "verify_ssl": "Verify TLS certificate",
+          "enable_nutrition": "Enable nutrition sensors",
+          "enable_exercise": "Enable exercise sensors",
+          "enable_checkin": "Enable check-in sensors",
+          "enable_engagement": "Enable engagement sensors"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "weight": {"name": "Weight"}, "steps_today": {"name": "Steps today"}, "calories_today": {"name": "Calories today"},
+      "protein_today": {"name": "Protein today"}, "carbs_today": {"name": "Carbohydrates today"}, "fat_today": {"name": "Fat today"},
+      "water_today": {"name": "Water today"}, "sleep_duration": {"name": "Sleep duration"}, "sleep_score": {"name": "Sleep score"},
+      "mood": {"name": "Mood"}, "body_fat": {"name": "Body fat"}, "exercise_count_today": {"name": "Exercise count today"},
+      "logging_streak": {"name": "Logging streak"}
+    },
+    "binary_sensor": {"fasting": {"name": "Fasting"}}
+  }
+}

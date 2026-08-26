@@ -1,0 +1,12 @@
+{
+  "domain": "sparkyfitness",
+  "name": "SparkyFitness",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/jensr/sparkyfitness-custom-integration",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/jensr/sparkyfitness-custom-integration/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

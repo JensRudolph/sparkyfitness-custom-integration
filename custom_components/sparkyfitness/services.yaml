@@ -1,0 +1,317 @@
+refresh:
+  name: Refresh
+  description: Immediately refresh all supported SparkyFitness entities through MCP.
+  fields:
+    config_entry_id:
+      name: Config entry
+      description: Required only when more than one SparkyFitness entry is configured.
+      selector:
+        config_entry:
+          integration: sparkyfitness
+
+log_weight:
+  name: Log weight
+  description: Log body weight using sparky_manage_checkin/log_biometrics.
+  fields:
+    config_entry_id: &config_entry
+      name: Config entry
+      selector:
+        config_entry:
+          integration: sparkyfitness
+    weight:
+      name: Weight
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 0.01
+          mode: box
+    unit:
+      name: Unit
+      default: kg
+      selector:
+        select:
+          options: [kg, lbs]
+    entry_date: &entry_date
+      name: Entry date
+      description: Defaults to today in Home Assistant's time zone.
+      selector:
+        date:
+
+log_biometrics:
+  name: Log biometrics
+  description: Log one or more biometric measurements for a date.
+  fields:
+    config_entry_id: *config_entry
+    entry_date: *entry_date
+    weight:
+      name: Weight
+      selector: {number: {min: 0, max: 1000, step: 0.01, mode: box}}
+    weight_unit:
+      name: Weight unit
+      default: kg
+      selector: {select: {options: [kg, lbs]}}
+    steps:
+      name: Steps
+      selector: {number: {min: 0, step: 1, mode: box}}
+    height:
+      name: Height
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    height_unit:
+      name: Height unit
+      default: cm
+      selector: {select: {options: [cm, in, ft]}}
+    neck:
+      name: Neck
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    waist:
+      name: Waist
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    hips:
+      name: Hips
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    measurements_unit:
+      name: Measurement unit
+      default: cm
+      selector: {select: {options: [cm, in]}}
+    body_fat:
+      name: Body fat
+      selector: {number: {min: 0, max: 100, step: 0.1, mode: box, unit_of_measurement: "%"}}
+    muscle_mass:
+      name: Muscle mass
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    bone_mass:
+      name: Bone mass
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    body_water:
+      name: Body water
+      selector: {number: {min: 0, max: 100, step: 0.1, mode: box, unit_of_measurement: "%"}}
+
+log_water:
+  name: Log water
+  description: Log water intake; the integration converts it to MCP's amount_ml field.
+  fields:
+    config_entry_id: *config_entry
+    amount:
+      name: Amount
+      required: true
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+    unit:
+      name: Unit
+      default: ml
+      selector: {select: {options: [ml, l, fl_oz]}}
+    entry_date: *entry_date
+
+log_mood:
+  name: Log mood
+  description: Log a mood score from 1 to 10 and optional notes/tags.
+  fields:
+    config_entry_id: *config_entry
+    mood:
+      name: Mood
+      required: true
+      selector: {number: {min: 1, max: 10, step: 1, mode: slider}}
+    notes:
+      name: Notes
+      selector: {text: {multiline: true}}
+    mood_tags:
+      name: Mood tags
+      selector: {object: {}}
+    entry_date: *entry_date
+
+log_sleep:
+  name: Log sleep
+  description: Log sleep duration and/or ISO 8601 bedtime and wake time.
+  fields:
+    config_entry_id: *config_entry
+    duration_minutes:
+      name: Duration
+      selector: {number: {min: 0, step: 1, mode: box, unit_of_measurement: min}}
+    bedtime:
+      name: Bedtime
+      description: ISO 8601 timestamp including a time-zone offset when known.
+      selector: {text: {}}
+    wake_time:
+      name: Wake time
+      description: ISO 8601 timestamp including a time-zone offset when known.
+      selector: {text: {}}
+    source:
+      name: Source
+      selector: {text: {}}
+    entry_date: *entry_date
+
+log_custom_metric:
+  name: Log custom metric
+  description: Log a value to an existing SparkyFitness custom measurement category.
+  fields:
+    config_entry_id: *config_entry
+    name:
+      name: Category name
+      required: true
+      selector: {text: {}}
+    value:
+      name: Value
+      required: true
+      selector: {text: {}}
+    unit:
+      name: Unit
+      selector: {text: {}}
+    notes:
+      name: Notes
+      selector: {text: {multiline: true}}
+    entry_date: *entry_date
+
+log_food:
+  name: Log food
+  description: Log a food that already exists in the authenticated user's SparkyFitness database.
+  fields:
+    config_entry_id: *config_entry
+    food:
+      name: Food name
+      required: true
+      selector: {text: {}}
+    quantity:
+      name: Quantity
+      required: true
+      selector: {number: {min: 0, step: 0.01, mode: box}}
+    unit:
+      name: Unit
+      selector: {text: {}}
+    meal_type:
+      name: Built-in meal type
+      default: snacks
+      selector: {select: {options: [breakfast, lunch, dinner, snacks]}}
+    meal_type_id:
+      name: Custom meal type ID
+      description: Takes precedence over the built-in meal type.
+      selector: {text: {}}
+    entry_date: *entry_date
+
+log_exercise:
+  name: Log exercise
+  description: Log an exercise and optional structured set/cardio data.
+  fields:
+    config_entry_id: *config_entry
+    exercise:
+      name: Exercise
+      required: true
+      selector: {text: {}}
+    entry_time:
+      name: Entry time
+      description: Optional 24-hour HH:MM time.
+      selector: {time: {}}
+    notes:
+      name: Notes
+      selector: {text: {multiline: true}}
+    duration_minutes:
+      name: Duration
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: min}}
+    calories_burned:
+      name: Calories burned
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: kcal}}
+    distance:
+      name: Distance
+      selector: {number: {min: 0, step: 0.01, mode: box}}
+    avg_heart_rate:
+      name: Average heart rate
+      selector: {number: {min: 0, max: 300, step: 1, mode: box, unit_of_measurement: bpm}}
+    steps:
+      name: Steps
+      selector: {number: {min: 0, step: 1, mode: box}}
+    sets:
+      name: Sets
+      description: List of objects with reps, weight, duration, distance, rest_time, set_type, rpe, and notes.
+      selector: {object: {}}
+    entry_date: *entry_date
+
+create_exercise:
+  name: Create exercise
+  description: Create an exercise; the server reuses a case-insensitive exact name match.
+  fields:
+    config_entry_id: *config_entry
+    name:
+      name: Name
+      required: true
+      selector: {text: {}}
+    category:
+      name: Category
+      selector: {text: {}}
+    description:
+      name: Description
+      selector: {text: {multiline: true}}
+    calories_per_hour:
+      name: Calories per hour
+      selector: {number: {min: 0, step: 1, mode: box}}
+    modality:
+      name: Modality
+      selector: {select: {options: [weight_reps, reps_only, duration, duration_distance]}}
+
+create_workout_preset:
+  name: Create workout preset
+  description: Resolve every exact exercise name to one ID, then create a preset only if all matches are unambiguous.
+  fields:
+    config_entry_id: *config_entry
+    name:
+      name: Name
+      required: true
+      selector: {text: {}}
+    exercises:
+      name: Exercises
+      required: true
+      selector: {object: {}}
+
+log_workout_preset:
+  name: Log workout preset
+  description: Log all exercises from an existing workout preset.
+  fields:
+    config_entry_id: *config_entry
+    preset_id:
+      name: Preset ID
+      selector: {text: {}}
+    preset_name:
+      name: Preset name
+      selector: {text: {}}
+    entry_date: *entry_date
+
+set_goals:
+  name: Set goals
+  description: Set calorie, macro, water, and/or weight goals from an effective date.
+  fields:
+    config_entry_id: *config_entry
+    start_date:
+      name: Effective date
+      selector: {date: {}}
+    calories:
+      name: Calories
+      selector: {number: {min: 0, step: 1, mode: box, unit_of_measurement: kcal}}
+    protein:
+      name: Protein
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: g}}
+    carbs:
+      name: Carbohydrates
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: g}}
+    fat:
+      name: Fat
+      selector: {number: {min: 0, step: 0.1, mode: box, unit_of_measurement: g}}
+    water_goal_ml:
+      name: Water goal
+      selector: {number: {min: 0, step: 1, mode: box, unit_of_measurement: ml}}
+    weight:
+      name: Target weight
+      selector: {number: {min: 0, step: 0.1, mode: box}}
+
+log_habit:
+  name: Log habit
+  description: Log completion for an existing SparkyFitness habit ID.
+  fields:
+    config_entry_id: *config_entry
+    habit_id:
+      name: Habit ID
+      required: true
+      selector: {text: {}}
+    completed:
+      name: Completed
+      required: true
+      selector: {boolean: {}}
+    entry_date: *entry_date

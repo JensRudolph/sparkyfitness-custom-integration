@@ -1,0 +1,54 @@
+{
+  "title": "SparkyFitness",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit SparkyFitness verbinden",
+        "description": "Gib die SparkyFitness-Basis-URL oder den /mcp-Endpunkt und einen persönlichen API-Schlüssel ein.",
+        "data": {"url": "SparkyFitness-URL", "api_key": "API-Schlüssel", "verify_ssl": "TLS-Zertifikat prüfen"},
+        "data_description": {"verify_ssl": "Nur deaktivieren, wenn du das Sicherheitsrisiko eines ungeprüften Zertifikats verstehst."}
+      },
+      "reauth_confirm": {
+        "title": "SparkyFitness erneut authentifizieren",
+        "description": "Der API-Schlüssel wurde abgelehnt oder widerrufen. Gib einen neuen persönlichen API-Schlüssel ein.",
+        "data": {"api_key": "API-Schlüssel"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Der SparkyFitness-MCP-Endpunkt ist nicht erreichbar.",
+      "invalid_auth": "Der API-Schlüssel ist ungültig oder wurde widerrufen.",
+      "invalid_mcp_server": "Der Endpunkt ist kein kompatibler SparkyFitness-MCP-Server.",
+      "invalid_url": "Gib eine gültige HTTP- oder HTTPS-URL ein.",
+      "ssl_error": "Die Prüfung des TLS-Zertifikats ist fehlgeschlagen.",
+      "timeout": "Der SparkyFitness-MCP-Endpunkt hat nicht rechtzeitig geantwortet.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten. Prüfe die Protokolle."
+    },
+    "abort": {"already_configured": "Dieses SparkyFitness-Konto ist bereits eingerichtet.", "reauth_successful": "SparkyFitness wurde erfolgreich erneut authentifiziert."}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SparkyFitness-Optionen",
+        "description": "Ohne TLS-Prüfung können API-Schlüssel und Gesundheitsdaten abgefangen werden. Deaktivierte Funktionsgruppen werden nicht per MCP abgefragt.",
+        "data": {
+          "update_interval": "Aktualisierungsintervall",
+          "verify_ssl": "TLS-Zertifikat prüfen",
+          "enable_nutrition": "Ernährungssensoren aktivieren",
+          "enable_exercise": "Trainingssensoren aktivieren",
+          "enable_checkin": "Check-in-Sensoren aktivieren",
+          "enable_engagement": "Engagement-Sensoren aktivieren"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "weight": {"name": "Gewicht"}, "steps_today": {"name": "Schritte heute"}, "calories_today": {"name": "Kalorien heute"},
+      "protein_today": {"name": "Protein heute"}, "carbs_today": {"name": "Kohlenhydrate heute"}, "fat_today": {"name": "Fett heute"},
+      "water_today": {"name": "Wasser heute"}, "sleep_duration": {"name": "Schlafdauer"}, "sleep_score": {"name": "Schlafwert"},
+      "mood": {"name": "Stimmung"}, "body_fat": {"name": "Körperfett"}, "exercise_count_today": {"name": "Trainingseinträge heute"},
+      "logging_streak": {"name": "Protokollierungsserie"}
+    },
+    "binary_sensor": {"fasting": {"name": "Fasten"}}
+  }
+}
