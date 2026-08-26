@@ -7,7 +7,7 @@ from typing import Final
 
 DOMAIN: Final = "sparkyfitness"
 NAME: Final = "SparkyFitness"
-INTEGRATION_VERSION: Final = "0.3.0"
+INTEGRATION_VERSION: Final = "0.3.1"
 
 PLATFORMS: Final = ["sensor", "binary_sensor"]
 
@@ -41,6 +41,7 @@ EXPECTED_TOOLS: Final = frozenset(
 )
 
 TOOL_HEALTH_SUMMARY: Final = "sparky_get_health_summary"
+TOOL_NUTRITION_SUMMARY: Final = "sparky_get_nutrition_summary"
 TOOL_DAILY_REPORT: Final = "sparky_get_daily_report"
 TOOL_CHECKIN: Final = "sparky_manage_checkin"
 TOOL_FOOD: Final = "sparky_manage_food"
@@ -88,3 +89,7 @@ SET_TYPES: Final = ("Working Set", "Warmup", "Drop Set", "Failure")
 MEAL_TYPES: Final = ("breakfast", "lunch", "dinner", "snacks")
 
 ATTRIBUTION: Final = "Data provided by SparkyFitness"
+
+SUPPORTED_MCP_PROTOCOL_VERSIONS: Final = frozenset(
+    {"2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"}
+)

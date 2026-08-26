@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -22,7 +22,35 @@ jobs:
         run: |
           uv sync --extra test --locked
           uv run ruff check custom_components tests
-          uv run pytest
+          uv run pytest --cov=custom_components/sparkyfitness --cov-report=term-missing --cov-fail-under=80
+      - name: Verify tag matches integration version
+        shell: bash
+        run: |
+          VERSION="$(python -c 'import json; print(json.load(open("custom_components/sparkyfitness/manifest.json"))["version"])')"
+          test "v${VERSION}" = "${GITHUB_REF_NAME}"
+
+  validate-hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
+  validate-hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Hassfest validation
+        uses: home-assistant/actions/hassfest@master
+
+  release:
+    needs: [test, validate-hacs, validate-hassfest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

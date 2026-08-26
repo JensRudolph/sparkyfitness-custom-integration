@@ -18,12 +18,14 @@ async def test_diagnostics_are_metadata_only(hass) -> None:
     client = MagicMock()
     client.endpoint = "https://sparky.example.com/mcp"
     client.server_version = "1.6.3"
+    client.protocol_version = "2025-11-25"
     client.tools = {"sparky_manage_checkin": object()}
     coordinator = MagicMock()
     coordinator.feature_enabled.return_value = True
     coordinator.last_successful_refresh = datetime(2026, 8, 26, tzinfo=UTC)
     coordinator.last_error_class = None
     coordinator.data.values = {"weight": 84.7, "mood": 8}
+    coordinator.data.section_errors = {"habits": "PartialHabitPollingError"}
     entry = MagicMock()
     entry.data = {"api_key": "super-secret", "verify_ssl": True}
     entry.options = {}
@@ -35,3 +37,5 @@ async def test_diagnostics_are_metadata_only(hass) -> None:
     assert "84.7" not in serialized
     assert '"mood"' not in serialized
     assert diagnostics["detected_mcp_tools"] == ["sparky_manage_checkin"]
+    assert diagnostics["mcp_protocol_version"] == "2025-11-25"
+    assert diagnostics["failed_polling_sections"] == ["habits"]

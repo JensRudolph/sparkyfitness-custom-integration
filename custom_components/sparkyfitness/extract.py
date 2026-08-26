@@ -36,23 +36,18 @@ def extract_json(text: str) -> Any:
 
 
 def parse_health_summary(text: str) -> dict[str, Any]:
-    """Project the documented health-summary JSON onto entity keys."""
+    """Project non-nutrition values from the documented health summary."""
 
     payload = extract_json(text)
     if not isinstance(payload, dict):
         raise SparkyFitnessMcpError("Health summary was not a JSON object")
 
-    nutrition = payload.get("nutrition") or {}
     fitness = payload.get("fitness") or {}
     vitals = payload.get("vitals") or {}
     hydration = payload.get("hydration") or {}
     latest_weight = vitals.get("latest_weight")
 
     result: dict[str, Any] = {
-        "calories_today": nutrition.get("total_calories"),
-        "protein_today": nutrition.get("avg_protein"),
-        "carbs_today": nutrition.get("avg_carbs"),
-        "fat_today": nutrition.get("avg_fat"),
         "water_today": hydration.get("total_water_ml"),
         "exercise_count_today": fitness.get("workout_count"),
     }
@@ -60,6 +55,43 @@ def parse_health_summary(text: str) -> dict[str, Any]:
         result["weight"] = latest_weight.get("weight")
         result["weight_unit"] = "kg"
     return result
+
+
+def parse_nutrition_summary(text: str) -> dict[str, Any]:
+    """Project the current day's true nutrition totals onto entity keys."""
+
+    payload = extract_json(text)
+    if not isinstance(payload, list):
+        raise SparkyFitnessMcpError("Nutrition summary was not a JSON array")
+    if not payload:
+        return dict.fromkeys(("calories_today", "protein_today", "carbs_today", "fat_today", "fiber_today", "sugar_today", "sodium_today", "potassium_today"))
+
+    row = payload[-1]
+    if not isinstance(row, dict):
+        raise SparkyFitnessMcpError("Nutrition summary row was not a JSON object")
+
+    calories = row.get("calories")
+    energy_unit = str(row.get("energy_unit") or "kcal").casefold()
+    if calories is not None:
+        calories = float(calories)
+        if energy_unit == "kj":
+            calories /= 4.184
+        elif energy_unit != "kcal":
+            raise SparkyFitnessMcpError(
+                f'Nutrition summary used unsupported energy unit "{energy_unit}"'
+            )
+        calories = round(calories, 2)
+
+    return {
+        "calories_today": calories,
+        "protein_today": row.get("protein"),
+        "carbs_today": row.get("carbs"),
+        "fat_today": row.get("fat"),
+        "fiber_today": row.get("fiber"),
+        "sugar_today": row.get("sugar"),
+        "sodium_today": row.get("sodium"),
+        "potassium_today": row.get("potassium"),
+    }
 
 
 def parse_checkin_diary(text: str) -> dict[str, Any]:
@@ -197,9 +229,12 @@ def parse_habit_completion(text: str, entry_date: str) -> bool | None:
 
     if not text.lstrip().startswith("# Habit History"):
         raise SparkyFitnessMcpError("Habit history response had an unexpected format")
+    date_pattern = (
+        r"\d{4}-\d{2}-\d{2}" if entry_date.casefold() == "today" else re.escape(entry_date)
+    )
     match = re.search(
-        rf"^{re.escape(entry_date)}:\s*(?:✅\s*)?(Completed)|"
-        rf"^{re.escape(entry_date)}:\s*(?:❌\s*)?(Missed)",
+        rf"^{date_pattern}:\s*(?:✅\s*)?(Completed)|"
+        rf"^{date_pattern}:\s*(?:❌\s*)?(Missed)",
         text,
         re.MULTILINE,
     )

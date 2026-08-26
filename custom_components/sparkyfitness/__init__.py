@@ -27,6 +27,7 @@ from .exceptions import (
     SparkyFitnessMcpError,
 )
 from .models import SparkyFitnessRuntimeData
+from .repairs import async_create_authentication_issue, async_update_connection_issues
 from .services import async_register_services
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -60,6 +61,7 @@ async def async_setup_entry(
     try:
         await client.async_test_connection()
     except SparkyFitnessAuthenticationError as err:
+        async_create_authentication_issue(hass, entry)
         raise ConfigEntryAuthFailed from err
     except (SparkyFitnessConnectionError, SparkyFitnessMcpError) as err:
         raise ConfigEntryNotReady(str(err)) from err
@@ -74,6 +76,7 @@ async def async_setup_entry(
         client=client,
         coordinator=coordinator,
     )
+    async_update_connection_issues(hass, entry, client)
     await hass.config_entries.async_forward_entry_setups(
         entry, [Platform(platform) for platform in PLATFORMS]
     )

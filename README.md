@@ -43,6 +43,7 @@ Home Assistant
 - Multiple SparkyFitness accounts/instances. Actions automatically target the
   only loaded entry, or accept `config_entry_id` when several entries exist.
 - API-key reauthentication without deleting the config entry.
+- Reconfiguration of the MCP URL and TLS policy without recreating entities.
 - English and German UI/entity translations.
 - HACS-ready repository layout and manual installation support.
 
@@ -128,6 +129,10 @@ Disabling a feature group also prevents its unnecessary MCP polling calls.
 Disabling TLS verification is unsafe: it allows interception of both the API key
 and sensitive health data.
 
+Use the integration's **Reconfigure** action to change the MCP URL or TLS policy.
+The existing API key is validated against the new endpoint before the entry is
+updated and reloaded.
+
 ## Entities
 
 Entities are created only when their required tool was returned by `tools/list`.
@@ -137,10 +142,14 @@ Missing data remains unknown; it is never estimated or replaced with zero.
 |---|---|---|
 | `weight` | `sparky_get_health_summary` / check-in diary | kg |
 | `steps_today` | `sparky_manage_checkin/list_checkin_diary` | steps |
-| `calories_today` | `sparky_get_health_summary` | kcal |
-| `protein_today` | `sparky_get_health_summary` | g |
-| `carbs_today` | `sparky_get_health_summary` | g |
-| `fat_today` | `sparky_get_health_summary` | g |
+| `calories_today` | `sparky_get_nutrition_summary` daily total | kcal |
+| `protein_today` | `sparky_get_nutrition_summary` daily total | g |
+| `carbs_today` | `sparky_get_nutrition_summary` daily total | g |
+| `fat_today` | `sparky_get_nutrition_summary` daily total | g |
+| `fiber_today` | `sparky_get_nutrition_summary` daily total | g |
+| `sugar_today` | `sparky_get_nutrition_summary` daily total | g |
+| `sodium_today` | `sparky_get_nutrition_summary` daily total | mg |
+| `potassium_today` | `sparky_get_nutrition_summary` daily total | mg |
 | `water_today` | `sparky_get_health_summary` | ml |
 | `sleep_duration` | `sparky_manage_checkin/list_checkin_diary` | h |
 | `sleep_score` | `sparky_manage_checkin/list_checkin_diary` | score |
@@ -173,8 +182,10 @@ Missing data remains unknown; it is never estimated or replaced with zero.
 
 Goal progress and remaining-amount sensors are also available for calories,
 protein, carbohydrates, fat, and water. They are disabled by default in the
-entity registry to avoid unnecessary entity clutter. Habit entities retain only
-today's compact state and stable habit ID, never the full completion history.
+entity registry to avoid unnecessary entity clutter. Fiber, sugar, sodium, and
+potassium sensors are likewise available but disabled by default. Habit entities
+retain only today's compact state and stable habit ID, never the full completion
+history.
 
 All entities belong to one virtual **SparkyFitness** device per config entry. The
 MCP server version from the initialize response is shown as the software version
@@ -216,6 +227,8 @@ Every action uses a fixed, reviewed MCP mapping. There is deliberately no generi
 | `sparkyfitness.get_habit_history` | `sparky_manage_habits/get_habit_history` |
 
 After every successful write, the coordinator requests an immediate refresh.
+When an action omits its date, the integration sends the `today` keyword so each
+SparkyFitness account resolves the date in that user's configured time zone.
 All action fields and selectors are documented in the Home Assistant action UI.
 
 Update and delete actions deliberately require an exact diary-entry UUID. Delete
@@ -359,15 +372,19 @@ fast; the current MCP has no mutation action for that operation.
 
 ## Data updates and availability
 
-The coordinator uses a single health-summary request for nutrition, hydration,
-weight, and exercise totals. Check-in, fasting, and streak sections are fetched
-only when their tools and feature groups are active. Goals are refreshed at most
-every 30 minutes and 30-day aggregates at most hourly, unless a relevant write or
-manual refresh invalidates that cache.
+The coordinator uses the dedicated nutrition-summary tool for true daily food and
+supplement totals. The health summary supplies hydration, weight, and exercise
+totals. Check-in, fasting, and streak sections are fetched only when their tools
+and feature groups are active. Goals are refreshed at most every 30 minutes and
+30-day aggregates at most hourly, unless a relevant write or manual refresh
+invalidates that cache.
 
-When habit sensors are enabled, the coordinator first lists the available habits
-and then reads today's state for each habit through the existing MCP actions.
-Disable habit sensors if this additional per-habit polling is not wanted.
+When habit sensors are enabled, the coordinator caches the habit catalog for one
+hour and reads today's state for each habit with at most four concurrent MCP
+calls. A partial history failure preserves the last state while marking only the
+affected habit unavailable. Renames and authoritative deletions are reflected in
+the entity registry. Disable habit sensors if this additional polling is not
+wanted.
 
 Optional section errors are isolated. A total communication failure marks
 coordinator entities unavailable while retaining their last state. The next
@@ -380,9 +397,11 @@ Diagnostics contain only technical metadata:
 
 - Hostname and MCP endpoint.
 - Integration and advertised SparkyFitness version.
+- Negotiated MCP protocol version.
 - Discovered tool names.
 - Enabled feature groups and update interval.
-- Last successful refresh time and last technical exception class.
+- Last successful refresh time, failed polling sections, and last technical
+  exception class.
 
 Diagnostics never contain the API key, authorization header, entity values,
 food diary, exercise diary, or other health records. The API key is never logged
@@ -407,6 +426,9 @@ Home Assistant ↔ configured SparkyFitness MCP endpoint
 
 Create a new personal API key in SparkyFitness and complete the reauthentication
 flow in Home Assistant. Do not delete the integration.
+
+Home Assistant also creates repair issues for rejected authentication,
+unverified MCP protocol versions, and tools missing from enabled feature groups.
 
 ### TLS error
 
@@ -489,14 +511,16 @@ Home Assistant's official test harness targets Linux. On native Windows, the
 platform-independent subset can run locally; GitHub Actions runs the complete
 mocked suite automatically.
 
-GitHub Actions runs Ruff, the complete mocked test suite, HACS validation, and
-hassfest validation. A semantic version tag such as `v0.3.0` creates a GitHub
-release automatically.
+GitHub Actions runs Ruff, a coverage-gated complete mocked test suite, HACS
+validation, and hassfest validation. A semantic version tag such as `v0.3.1`
+creates a release only after all four checks pass and the tag matches the manifest
+version.
 
 The tests use mocks only and require no real SparkyFitness URL or API key. They
-cover config flow errors, MCP discovery/calls/errors/timeouts/disconnect/reconnect,
-coordinator partial/total failure, slow-section throttling and recovery, privacy
-diagnostics, output parsing, and the key write/update/delete actions.
+cover config and reconfigure flow errors, MCP discovery/calls/SSE/errors/timeouts,
+coordinator partial/total failure, time-zone defaults, habit caching and recovery,
+privacy diagnostics, repair issues, output parsing, release metadata, and the key
+write/update/delete actions.
 
 ## License
 

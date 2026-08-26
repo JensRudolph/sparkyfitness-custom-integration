@@ -28,6 +28,7 @@ from .const import (
     TOOL_GOALS,
     TOOL_HABITS,
     TOOL_HEALTH_SUMMARY,
+    TOOL_NUTRITION_SUMMARY,
     TOOL_SEARCH_EXERCISES,
     TOOL_SEARCH_FOODS,
     TOOL_STREAK,
@@ -107,6 +108,12 @@ class SparkyFitnessMcpClient:
 
         version = self.server_info.get("version")
         return str(version) if version is not None else None
+
+    @property
+    def protocol_version(self) -> str:
+        """Return the MCP protocol version negotiated with the server."""
+
+        return self._protocol_version
 
     async def async_connect(self) -> None:
         """Initialize MCP and retain session metadata when supplied."""
@@ -193,7 +200,7 @@ class SparkyFitnessMcpClient:
 
         if not self._connected:
             await self.async_connect()
-        if not self.tools:
+        if not self.tools or name not in self.tools:
             await self.async_list_tools()
         if name not in self.tools:
             raise SparkyFitnessUnsupportedFeatureError(
@@ -210,10 +217,21 @@ class SparkyFitnessMcpClient:
             and isinstance(advertised_actions, list)
             and action not in advertised_actions
         ):
-            raise SparkyFitnessUnsupportedFeatureError(
-                f'The connected SparkyFitness schema does not support action "{action}" '
-                f'on tool "{name}"'
+            await self.async_list_tools()
+            if name not in self.tools:
+                raise SparkyFitnessUnsupportedFeatureError(
+                    f'The connected SparkyFitness server does not expose "{name}"'
+                )
+            refreshed_schema = (
+                self.tools[name].input_schema.get("properties", {})
+                .get("action", {})
             )
+            refreshed_actions = refreshed_schema.get("enum")
+            if isinstance(refreshed_actions, list) and action not in refreshed_actions:
+                raise SparkyFitnessUnsupportedFeatureError(
+                    f'The connected SparkyFitness schema does not support action "{action}" '
+                    f'on tool "{name}"'
+                )
 
         result = await self._request(
             "tools/call", {"name": name, "arguments": call_arguments}
@@ -231,6 +249,11 @@ class SparkyFitnessMcpClient:
         """Return today's structured health summary."""
 
         return str(await self.async_call_tool(TOOL_HEALTH_SUMMARY))
+
+    async def async_get_nutrition_summary(self) -> str:
+        """Return today's true per-day nutrition totals."""
+
+        return str(await self.async_call_tool(TOOL_NUTRITION_SUMMARY))
 
     async def async_get_checkin(self) -> str:
         """Return today's check-in diary."""
@@ -643,15 +666,19 @@ class SparkyFitnessMcpClient:
                 decoded = json.loads(text)
                 if isinstance(decoded, dict):
                     return decoded
+            idless_error: dict[str, Any] | None = None
             for line in text.splitlines():
                 if not line.startswith("data:"):
                     continue
                 candidate = json.loads(line[5:].strip())
-                if isinstance(candidate, dict) and candidate.get("id") in {
-                    request_id,
-                    None,
-                }:
+                if not isinstance(candidate, dict):
+                    continue
+                if candidate.get("id") == request_id:
                     return candidate
+                if candidate.get("id") is None and "error" in candidate:
+                    idless_error = candidate
+            if idless_error is not None:
+                return idless_error
         except json.JSONDecodeError as err:
             raise SparkyFitnessMcpError("MCP endpoint returned invalid JSON") from err
         raise SparkyFitnessMcpError("MCP endpoint returned no JSON-RPC response")

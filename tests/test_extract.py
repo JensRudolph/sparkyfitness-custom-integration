@@ -10,6 +10,7 @@ from custom_components.sparkyfitness.extract import (
     parse_habit_list,
     parse_health_summary,
     parse_logging_streak,
+    parse_nutrition_summary,
 )
 
 
@@ -22,16 +23,32 @@ def test_parse_structured_summary_and_streak() -> None:
         '"hydration":{"total_water_ml":2500}}'
     )
     assert summary == {
-        "calories_today": 1800,
-        "protein_today": 120.5,
-        "carbs_today": 200,
-        "fat_today": 60,
         "water_today": 2500,
         "exercise_count_today": 2,
         "weight": 84.7,
         "weight_unit": "kg",
     }
     assert parse_logging_streak('{"current_streak":9,"last_logged":"2026-08-26"}') == 9
+
+
+def test_parse_true_daily_nutrition_totals_and_kilojoules() -> None:
+    """Daily macro totals replace the health summary's per-entry averages."""
+
+    assert parse_nutrition_summary(
+        '[{"entry_date":"2026-08-26","calories":8368,"protein":142.5,'
+        '"carbs":210,"fat":68,"fiber":31,"sugar":44,"sodium":2200,'
+        '"potassium":3600,"energy_unit":"kJ"}]'
+    ) == {
+        "calories_today": 2000.0,
+        "protein_today": 142.5,
+        "carbs_today": 210,
+        "fat_today": 68,
+        "fiber_today": 31,
+        "sugar_today": 44,
+        "sodium_today": 2200,
+        "potassium_today": 3600,
+    }
+    assert all(value is None for value in parse_nutrition_summary("[]").values())
 
 
 def test_parse_checkin_markdown() -> None:
@@ -147,4 +164,8 @@ def test_parse_habits_and_today_completion() -> None:
     assert (
         parse_habit_completion("# Habit History\n\nNo results found.", "2026-08-26")
         is None
+    )
+    assert (
+        parse_habit_completion("# Habit History\n\n2026-08-27: ✅ Completed", "today")
+        is True
     )

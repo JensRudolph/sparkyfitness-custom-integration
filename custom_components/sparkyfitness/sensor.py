@@ -34,6 +34,7 @@ from .const import (
     TOOL_CHECKIN,
     TOOL_GOAL_SNAPSHOT,
     TOOL_HEALTH_SUMMARY,
+    TOOL_NUTRITION_SUMMARY,
     TOOL_STREAK,
 )
 from .entity import SparkyFitnessEntity
@@ -106,7 +107,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.KILO_CALORIE,
         state_class=SensorStateClass.TOTAL,
-        required_tools=frozenset({TOOL_HEALTH_SUMMARY}),
+        required_tools=frozenset({TOOL_NUTRITION_SUMMARY}),
         feature_option=CONF_ENABLE_NUTRITION,
         value_fn=lambda data: data.get("calories_today"),
     ),
@@ -117,7 +118,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
             icon=icon,
             native_unit_of_measurement=UnitOfMass.GRAMS,
             state_class=SensorStateClass.TOTAL,
-            required_tools=frozenset({TOOL_HEALTH_SUMMARY}),
+            required_tools=frozenset({TOOL_NUTRITION_SUMMARY}),
             feature_option=CONF_ENABLE_NUTRITION,
             value_fn=lambda data, value_key=key: data.get(value_key),
         )
@@ -125,6 +126,25 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
             ("protein_today", "mdi:food-drumstick"),
             ("carbs_today", "mdi:barley"),
             ("fat_today", "mdi:oil"),
+        )
+    ),
+    *(
+        SparkyFitnessSensorDescription(
+            key=key,
+            translation_key=key,
+            icon=icon,
+            native_unit_of_measurement=unit,
+            state_class=SensorStateClass.TOTAL,
+            entity_registry_enabled_default=False,
+            required_tools=frozenset({TOOL_NUTRITION_SUMMARY}),
+            feature_option=CONF_ENABLE_NUTRITION,
+            value_fn=lambda data, value_key=key: data.get(value_key),
+        )
+        for key, icon, unit in (
+            ("fiber_today", "mdi:grain", UnitOfMass.GRAMS),
+            ("sugar_today", "mdi:cube-outline", UnitOfMass.GRAMS),
+            ("sodium_today", "mdi:shaker-outline", UnitOfMass.MILLIGRAMS),
+            ("potassium_today", "mdi:food-apple-outline", UnitOfMass.MILLIGRAMS),
         )
     ),
     SparkyFitnessSensorDescription(
@@ -238,7 +258,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
             native_unit_of_measurement=unit,
             state_class=SensorStateClass.MEASUREMENT,
             entity_registry_enabled_default=False,
-            required_tools=frozenset({TOOL_HEALTH_SUMMARY, TOOL_GOAL_SNAPSHOT}),
+            required_tools=frozenset({current_tool, TOOL_GOAL_SNAPSHOT}),
             feature_option=CONF_ENABLE_GOALS,
             additional_feature_options=frozenset({CONF_ENABLE_NUTRITION}),
             require_all_tools=True,
@@ -246,7 +266,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 _remaining(data, current_key, goal_key)
             ),
         )
-        for key, current_key, goal_key, icon, unit, device_class in (
+        for key, current_key, goal_key, icon, unit, device_class, current_tool in (
             (
                 "calories",
                 "calories_today",
@@ -254,6 +274,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 "mdi:fire",
                 UnitOfEnergy.KILO_CALORIE,
                 SensorDeviceClass.ENERGY,
+                TOOL_NUTRITION_SUMMARY,
             ),
             (
                 "protein",
@@ -262,6 +283,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 "mdi:food-drumstick",
                 UnitOfMass.GRAMS,
                 None,
+                TOOL_NUTRITION_SUMMARY,
             ),
             (
                 "carbs",
@@ -270,6 +292,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 "mdi:barley",
                 UnitOfMass.GRAMS,
                 None,
+                TOOL_NUTRITION_SUMMARY,
             ),
             (
                 "fat",
@@ -278,6 +301,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 "mdi:oil",
                 UnitOfMass.GRAMS,
                 None,
+                TOOL_NUTRITION_SUMMARY,
             ),
             (
                 "water",
@@ -286,6 +310,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 "mdi:cup-water",
                 UnitOfVolume.MILLILITERS,
                 None,
+                TOOL_HEALTH_SUMMARY,
             ),
         )
     ),
@@ -297,7 +322,7 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
             native_unit_of_measurement=PERCENTAGE,
             state_class=SensorStateClass.MEASUREMENT,
             entity_registry_enabled_default=False,
-            required_tools=frozenset({TOOL_HEALTH_SUMMARY, TOOL_GOAL_SNAPSHOT}),
+            required_tools=frozenset({current_tool, TOOL_GOAL_SNAPSHOT}),
             feature_option=CONF_ENABLE_GOALS,
             additional_feature_options=frozenset({CONF_ENABLE_NUTRITION}),
             require_all_tools=True,
@@ -305,12 +330,12 @@ SENSORS: tuple[SparkyFitnessSensorDescription, ...] = (
                 data, current_key, goal_key
             ),
         )
-        for key, current_key, goal_key in (
-            ("calories", "calories_today", "calorie_goal"),
-            ("protein", "protein_today", "protein_goal"),
-            ("carbs", "carbs_today", "carbs_goal"),
-            ("fat", "fat_today", "fat_goal"),
-            ("water", "water_today", "water_goal"),
+        for key, current_key, goal_key, current_tool in (
+            ("calories", "calories_today", "calorie_goal", TOOL_NUTRITION_SUMMARY),
+            ("protein", "protein_today", "protein_goal", TOOL_NUTRITION_SUMMARY),
+            ("carbs", "carbs_today", "carbs_goal", TOOL_NUTRITION_SUMMARY),
+            ("fat", "fat_today", "fat_goal", TOOL_NUTRITION_SUMMARY),
+            ("water", "water_today", "water_goal", TOOL_HEALTH_SUMMARY),
         )
     ),
     SparkyFitnessSensorDescription(

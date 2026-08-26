@@ -37,6 +37,7 @@ async def async_get_config_entry_diagnostics(
         "mcp_endpoint": endpoint,
         "integration_version": INTEGRATION_VERSION,
         "sparkyfitness_version": runtime.client.server_version,
+        "mcp_protocol_version": runtime.client.protocol_version,
         "detected_mcp_tools": sorted(runtime.client.tools),
         "feature_groups": {
             "nutrition": coordinator.feature_enabled(CONF_ENABLE_NUTRITION),
@@ -60,4 +61,5 @@ async def async_get_config_entry_diagnostics(
             else None
         ),
         "last_technical_error_class": coordinator.last_error_class,
+        "failed_polling_sections": sorted(coordinator.data.section_errors),
     }

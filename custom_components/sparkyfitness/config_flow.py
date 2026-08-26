@@ -120,6 +120,75 @@ class SparkyFitnessConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return await self.async_step_reauth_confirm()
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Change the MCP endpoint or TLS policy without recreating the entry."""
+
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        current_verify_ssl = entry.options.get(
+            CONF_VERIFY_SSL,
+            entry.data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+        )
+        if user_input is not None:
+            try:
+                endpoint = normalize_mcp_endpoint(user_input[CONF_URL])
+            except ValueError:
+                errors["base"] = "invalid_url"
+            else:
+                verify_ssl = user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL)
+                data = {
+                    **entry.data,
+                    CONF_URL: endpoint,
+                    CONF_VERIFY_SSL: verify_ssl,
+                }
+                if (error := await self._async_validate(data)) is None:
+                    for other in self._async_current_entries():
+                        if (
+                            other.entry_id != entry.entry_id
+                            and other.data.get(CONF_URL) == endpoint
+                            and other.data.get(CONF_API_KEY) == data[CONF_API_KEY]
+                        ):
+                            return self.async_abort(reason="already_configured")
+                    account_name = str(
+                        entry.options.get(
+                            CONF_ACCOUNT_NAME,
+                            entry.data.get(CONF_ACCOUNT_NAME, ""),
+                        )
+                    ).strip()
+                    return self.async_update_reload_and_abort(
+                        entry,
+                        data_updates={
+                            CONF_URL: endpoint,
+                            CONF_VERIFY_SSL: verify_ssl,
+                        },
+                        options={**entry.options, CONF_VERIFY_SSL: verify_ssl},
+                        title=_entry_title(endpoint, account_name),
+                    )
+                errors["base"] = error
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_URL,
+                        default=(user_input or {}).get(
+                            CONF_URL, entry.data[CONF_URL]
+                        ),
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+                    vol.Required(
+                        CONF_VERIFY_SSL,
+                        default=(user_input or {}).get(
+                            CONF_VERIFY_SSL, current_verify_ssl
+                        ),
+                    ): BooleanSelector(),
+                }
+            ),
+            errors=errors,
+        )
+
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:

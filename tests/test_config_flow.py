@@ -224,3 +224,48 @@ async def test_options_flow(hass) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == options
     assert entry.title == "Jens · sparky.example.com"
+
+
+async def test_reconfigure_updates_endpoint_tls_and_title(hass) -> None:
+    """The supported reconfigure flow retains credentials and reloads the entry."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Jens · old.example.com",
+        data={
+            CONF_URL: "https://old.example.com/mcp",
+            CONF_API_KEY: "private-key",
+            CONF_VERIFY_SSL: True,
+        },
+        options={CONF_ACCOUNT_NAME: "Jens", CONF_VERIFY_SSL: True},
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch(
+            "custom_components.sparkyfitness.config_flow.SparkyFitnessMcpClient.async_test_connection",
+            new=AsyncMock(return_value={"sparky_manage_checkin": object()}),
+        ),
+        patch(
+            "custom_components.sparkyfitness.config_flow.SparkyFitnessMcpClient.async_disconnect",
+            new=AsyncMock(),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={
+                "source": config_entries.SOURCE_RECONFIGURE,
+                "entry_id": entry.entry_id,
+            },
+        )
+        assert result["type"] is FlowResultType.FORM
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {CONF_URL: "https://new.example.com/", CONF_VERIFY_SSL: False},
+        )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_URL] == "https://new.example.com/mcp"
+    assert entry.data[CONF_API_KEY] == "private-key"
+    assert entry.options[CONF_VERIFY_SSL] is False
+    assert entry.title == "Jens · new.example.com"

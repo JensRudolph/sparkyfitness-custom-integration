@@ -22,6 +22,17 @@
         "data": {
           "api_key": "API key"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure SparkyFitness",
+        "description": "Change the MCP endpoint or TLS certificate policy. The existing API key will be reused and validated.",
+        "data": {
+          "url": "SparkyFitness URL",
+          "verify_ssl": "Verify TLS certificate"
+        },
+        "data_description": {
+          "verify_ssl": "Keep enabled unless you understand the security risk of an unverified certificate."
+        }
       }
     },
     "error": {
@@ -35,7 +46,8 @@
     },
     "abort": {
       "already_configured": "This SparkyFitness account is already configured.",
-      "reauth_successful": "SparkyFitness reauthentication was successful."
+      "reauth_successful": "SparkyFitness reauthentication was successful.",
+      "reconfigure_successful": "SparkyFitness was reconfigured successfully."
     }
   },
   "options": {
@@ -66,6 +78,10 @@
       "protein_today": {"name": "Protein today"},
       "carbs_today": {"name": "Carbohydrates today"},
       "fat_today": {"name": "Fat today"},
+      "fiber_today": {"name": "Fiber today"},
+      "sugar_today": {"name": "Sugar today"},
+      "sodium_today": {"name": "Sodium today"},
+      "potassium_today": {"name": "Potassium today"},
       "water_today": {"name": "Water today"},
       "sleep_duration": {"name": "Sleep duration"},
       "sleep_score": {"name": "Sleep score"},
@@ -106,6 +122,39 @@
     "binary_sensor": {
       "fasting": {"name": "Fasting"},
       "fasting_goal_reached": {"name": "Fasting goal reached"}
+    }
+  },
+  "exceptions": {
+    "authentication_failed": {"message": "SparkyFitness authentication failed."},
+    "action_failed": {"message": "The SparkyFitness action failed: {error}"},
+    "unsupported_feature": {"message": "The connected SparkyFitness server does not support this action: {error}"},
+    "entry_not_loaded": {"message": "The SparkyFitness config entry {entry_id} is not loaded."},
+    "no_loaded_entry": {"message": "No loaded SparkyFitness config entry exists."},
+    "entry_id_required": {"message": "Multiple SparkyFitness entries exist; provide config_entry_id."},
+    "date_fields_mutually_exclusive": {"message": "Use date or start_date/end_date, not both."},
+    "date_range_incomplete": {"message": "Provide both start_date and end_date."},
+    "end_date_before_start": {"message": "end_date must not be before start_date."},
+    "biometric_required": {"message": "At least one biometric measurement is required."},
+    "sleep_value_required": {"message": "Provide duration_minutes, bedtime, or wake_time."},
+    "food_update_required": {"message": "Provide quantity, unit, meal_type, or meal_type_id."},
+    "exercise_update_required": {"message": "At least one exercise entry field is required."},
+    "preset_required": {"message": "Provide preset_id or preset_name."},
+    "goal_required": {"message": "At least one goal value is required."},
+    "end_time_after_start": {"message": "end_time must be after start_time."},
+    "unknown_action": {"message": "Unknown SparkyFitness action: {action}"}
+  },
+  "issues": {
+    "missing_tools": {
+      "title": "Enabled SparkyFitness features are unavailable",
+      "description": "The connected MCP server does not expose these tools required by enabled feature groups: {tools}. Update SparkyFitness or disable the affected feature groups in the integration options."
+    },
+    "unsupported_protocol": {
+      "title": "Unverified MCP protocol version",
+      "description": "The server negotiated MCP protocol version {version}, which this integration has not verified. Update the integration or use a supported SparkyFitness release."
+    },
+    "authentication_failed": {
+      "title": "SparkyFitness authentication failed",
+      "description": "The API key was rejected or revoked. Open the SparkyFitness integration and complete reauthentication."
     }
   }
 }

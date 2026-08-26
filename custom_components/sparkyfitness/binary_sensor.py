@@ -11,6 +11,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -47,24 +48,44 @@ async def async_setup_entry(
     ):
         return
 
-    known_habit_ids: set[str] = set()
+    habit_entities: dict[str, SparkyFitnessHabitBinarySensor] = {}
+
+    async def async_remove_habit(
+        habit_id: str, entity: SparkyFitnessHabitBinarySensor
+    ) -> None:
+        """Remove an entity after an authoritative catalog deletion."""
+
+        entity_id = entity.entity_id
+        await entity.async_remove()
+        if entity_id:
+            registry = er.async_get(hass)
+            if registry.async_get(entity_id):
+                registry.async_remove(entity_id)
 
     @callback
     def async_add_new_habits() -> None:
         """Add newly discovered habits without persisting their history."""
 
-        new_ids = set(coordinator.data.habits) - known_habit_ids
-        if not new_ids:
-            return
-        async_add_entities(
+        current_ids = set(coordinator.data.habits)
+        new_ids = current_ids - set(habit_entities)
+        entities = [
             SparkyFitnessHabitBinarySensor(
                 coordinator,
                 habit_id,
-                str(coordinator.data.habits[habit_id].get("name") or "Habit"),
             )
             for habit_id in sorted(new_ids)
-        )
-        known_habit_ids.update(new_ids)
+        ]
+        if entities:
+            habit_entities.update(
+                {entity.habit_id: entity for entity in entities}
+            )
+            async_add_entities(entities)
+        for habit_id in set(habit_entities) - current_ids:
+            entity = habit_entities.pop(habit_id)
+            hass.async_create_task(
+                async_remove_habit(habit_id, entity),
+                f"Remove deleted SparkyFitness habit {habit_id}",
+            )
 
     async_add_new_habits()
     entry.async_on_unload(coordinator.async_add_listener(async_add_new_habits))
@@ -142,25 +163,47 @@ class SparkyFitnessHabitBinarySensor(SparkyFitnessEntity, BinarySensorEntity):
 
     _attr_icon = "mdi:checkbox-marked-circle-outline"
 
-    def __init__(self, coordinator, habit_id: str, name: str) -> None:
+    def __init__(self, coordinator, habit_id: str) -> None:
         """Initialize one dynamically discovered habit."""
 
         super().__init__(coordinator, f"habit_{habit_id}")
         self._habit_id = habit_id
-        self._attr_name = name
+
+    @property
+    def habit_id(self) -> str:
+        """Return the stable source identifier."""
+
+        return self._habit_id
+
+    @property
+    def name(self) -> str:
+        """Follow upstream habit renames without recreating the entity."""
+
+        habit = self.coordinator.data.habits.get(self._habit_id) or {}
+        return str(habit.get("name") or "Habit")
 
     @property
     def available(self) -> bool:
         """Mark removed habits unavailable while retaining registry identity."""
 
-        return super().available and self._habit_id in self.coordinator.data.habits
+        habit = self.coordinator.data.habits.get(self._habit_id)
+        return (
+            super().available
+            and habit is not None
+            and habit.get("history_available", True)
+        )
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return true only for an explicit completion today."""
 
         habit = self.coordinator.data.habits.get(self._habit_id) or {}
-        return habit.get("completed") is True
+        completed = habit.get("completed")
+        if habit.get("history_available", True) is False and not isinstance(
+            completed, bool
+        ):
+            return None
+        return completed is True
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

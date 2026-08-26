@@ -30,6 +30,15 @@ class SparkyFitnessData:
 
 
 @dataclass(slots=True)
+class HabitPollResult:
+    """Compact habit snapshot plus non-fatal polling failures."""
+
+    habits: dict[str, dict[str, Any]]
+    failed_ids: set[str] = field(default_factory=set)
+    catalog_failed: bool = False
+
+
+@dataclass(slots=True)
 class SparkyFitnessRuntimeData:
     """Runtime objects owned by one Home Assistant config entry."""
 

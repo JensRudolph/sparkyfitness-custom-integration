@@ -6,10 +6,20 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import voluptuous as vol
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.service import async_get_all_descriptions
 
 from custom_components.sparkyfitness import async_setup
 from custom_components.sparkyfitness.const import (
+    CONF_ENABLE_CHECKIN,
+    CONF_ENABLE_ENGAGEMENT,
+    CONF_ENABLE_EXERCISE,
+    CONF_ENABLE_GOALS,
+    CONF_ENABLE_HABITS,
+    CONF_ENABLE_NUTRITION,
+    CONF_ENABLE_TRENDS,
     DOMAIN,
     SERVICE_DELETE_EXERCISE_ENTRY,
     SERVICE_DELETE_FOOD_ENTRY,
@@ -24,11 +34,18 @@ from custom_components.sparkyfitness.const import (
     SERVICE_LOG_MOOD,
     SERVICE_LOG_WATER,
     SERVICE_LOG_WEIGHT,
+    SERVICE_REFRESH,
     SERVICE_SEARCH_EXERCISE,
     SERVICE_SEARCH_FOOD,
     SERVICE_START_FASTING,
     SERVICE_UPDATE_EXERCISE_ENTRY,
     SERVICE_UPDATE_FOOD_ENTRY,
+)
+from custom_components.sparkyfitness.services import (
+    CREATE_WORKOUT_PRESET_SCHEMA,
+    LOG_HABIT_SCHEMA,
+    _date_string,
+    _resolve_entry,
 )
 
 ENTRY_ID = "11111111-1111-1111-1111-111111111111"
@@ -40,6 +57,9 @@ async def service_runtime(hass):
 
     await async_setup(hass, {})
     client = MagicMock()
+    client.tools = {}
+    client.protocol_version = "2025-11-25"
+    client.async_list_tools = AsyncMock(return_value={})
     client.async_log_weight = AsyncMock(return_value="weight logged")
     client.async_log_water = AsyncMock(return_value="water logged")
     client.async_log_mood = AsyncMock(return_value="mood logged")
@@ -69,6 +89,16 @@ async def service_runtime(hass):
     coordinator.async_request_refresh = AsyncMock()
     coordinator.invalidate_sections = MagicMock()
     entry = MagicMock()
+    entry.entry_id = ENTRY_ID
+    entry.options = {
+        CONF_ENABLE_NUTRITION: False,
+        CONF_ENABLE_EXERCISE: False,
+        CONF_ENABLE_CHECKIN: False,
+        CONF_ENABLE_ENGAGEMENT: False,
+        CONF_ENABLE_GOALS: False,
+        CONF_ENABLE_TRENDS: False,
+        CONF_ENABLE_HABITS: False,
+    }
     entry.runtime_data = SimpleNamespace(client=client, coordinator=coordinator)
     with patch(
         "custom_components.sparkyfitness.services._resolve_entry",
@@ -157,6 +187,17 @@ async def test_log_weight(hass, service_runtime) -> None:
     client.async_log_weight.assert_awaited_once_with(84.7, "kg", "2026-08-26")
     coordinator.async_request_refresh.assert_awaited_once()
     assert response == {"result": "weight logged"}
+
+
+async def test_omitted_action_date_is_resolved_by_sparkyfitness(
+    hass, service_runtime
+) -> None:
+    """Different user time zones use the MCP server's definition of today."""
+
+    client, _ = service_runtime
+    await _call(hass, SERVICE_LOG_WEIGHT, {"weight": 84.7, "unit": "kg"})
+    client.async_log_weight.assert_awaited_once_with(84.7, "kg", "today")
+    assert _date_string(None) == "today"
 
 
 async def test_log_water_converts_liters(hass, service_runtime) -> None:
@@ -337,3 +378,36 @@ async def test_start_and_log_completed_fasting_window(hass, service_runtime) -> 
         fasting_type=None,
     )
     assert coordinator.async_request_refresh.await_count == 2
+
+
+async def test_manual_refresh_rediscovers_tools(hass, service_runtime) -> None:
+    """A manual refresh also checks for an upgraded MCP tool surface."""
+
+    client, coordinator = service_runtime
+    response = await _call(hass, SERVICE_REFRESH, {})
+    client.async_list_tools.assert_awaited_once()
+    coordinator.async_request_refresh.assert_awaited_once()
+    assert response == {"result": "refreshed"}
+
+
+def test_uuid_and_non_empty_action_validation() -> None:
+    """Invalid source IDs and blank preset contents fail before reaching MCP."""
+
+    with pytest.raises(vol.Invalid):
+        LOG_HABIT_SCHEMA({"habit_id": "not-a-uuid", "completed": True})
+    with pytest.raises(vol.Invalid):
+        CREATE_WORKOUT_PRESET_SCHEMA({"name": " ", "exercises": []})
+
+
+def test_multiple_entries_require_an_explicit_target(hass) -> None:
+    """Actions cannot silently select one account when multiple users are loaded."""
+
+    first = MagicMock(entry_id="first", state=ConfigEntryState.LOADED)
+    second = MagicMock(entry_id="second", state=ConfigEntryState.LOADED)
+    with patch.object(
+        hass.config_entries, "async_entries", return_value=[first, second]
+    ):
+        assert _resolve_entry(hass, "second") is second
+        with pytest.raises(ServiceValidationError) as err:
+            _resolve_entry(hass, None)
+    assert err.value.translation_key == "entry_id_required"

@@ -5,6 +5,8 @@ from custom_components.sparkyfitness.const import (
     CONF_ENABLE_TRENDS,
     TOOL_30_DAY_TRENDS,
     TOOL_GOAL_SNAPSHOT,
+    TOOL_HEALTH_SUMMARY,
+    TOOL_NUTRITION_SUMMARY,
 )
 from custom_components.sparkyfitness.sensor import SENSORS
 
@@ -45,8 +47,24 @@ def test_goal_progress_sensors_require_both_source_tools() -> None:
     descriptions = {description.key: description for description in SENSORS}
     progress = descriptions["calories_progress"]
     remaining = descriptions["water_remaining"]
+    assert progress.required_tools == frozenset(
+        {TOOL_NUTRITION_SUMMARY, TOOL_GOAL_SNAPSHOT}
+    )
+    assert remaining.required_tools == frozenset(
+        {TOOL_HEALTH_SUMMARY, TOOL_GOAL_SNAPSHOT}
+    )
     assert progress.require_all_tools is True
     assert progress.entity_registry_enabled_default is False
     assert progress.value_fn({"calories_today": 1800, "calorie_goal": 2000}) == 90
     assert remaining.value_fn({"water_today": 1750, "water_goal": 2500}) == 750
     assert remaining.value_fn({"water_today": 3000, "water_goal": 2500}) == 0
+
+
+def test_optional_micronutrient_sensors_are_disabled_by_default() -> None:
+    """Detailed nutrition sensors remain available without cluttering new setups."""
+
+    descriptions = {description.key: description for description in SENSORS}
+    for key in ("fiber_today", "sugar_today", "sodium_today", "potassium_today"):
+        description = descriptions[key]
+        assert description.required_tools == frozenset({TOOL_NUTRITION_SUMMARY})
+        assert description.entity_registry_enabled_default is False

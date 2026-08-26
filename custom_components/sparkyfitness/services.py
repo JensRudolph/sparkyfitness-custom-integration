@@ -51,6 +51,7 @@ from .exceptions import (
     SparkyFitnessUnsupportedFeatureError,
 )
 from .extract import extract_json
+from .repairs import async_update_connection_issues
 
 ENTRY_FIELD = {vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string}
 DATE_FIELD = {vol.Optional("entry_date"): cv.date}
@@ -61,7 +62,16 @@ UUID_VALUE = vol.All(
         r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
     ),
 )
-NON_EMPTY_STRING = vol.All(cv.string, vol.Length(min=1))
+def _non_empty_string(value: Any) -> str:
+    """Return stripped action text and reject blank values."""
+
+    text = cv.string(value).strip()
+    if not text:
+        raise vol.Invalid("value must not be empty")
+    return text
+
+
+NON_EMPTY_STRING = vol.All(_non_empty_string, vol.Length(max=200))
 DATE_RANGE_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
@@ -82,8 +92,8 @@ SEARCH_SCHEMA = vol.Schema(
 )
 SEARCH_EXERCISE_SCHEMA = SEARCH_SCHEMA.extend(
     {
-        vol.Optional("muscle_group"): cv.string,
-        vol.Optional("equipment"): cv.string,
+        vol.Optional("muscle_group"): NON_EMPTY_STRING,
+        vol.Optional("equipment"): NON_EMPTY_STRING,
     }
 )
 HABIT_HISTORY_SCHEMA = vol.Schema(
@@ -138,7 +148,7 @@ LOG_MOOD_SCHEMA = vol.Schema(
         **DATE_FIELD,
         vol.Required("mood"): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
         vol.Optional("notes"): cv.string,
-        vol.Optional("mood_tags"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("mood_tags"): vol.All(cv.ensure_list, [NON_EMPTY_STRING]),
     }
 )
 LOG_SLEEP_SCHEMA = vol.Schema(
@@ -148,16 +158,16 @@ LOG_SLEEP_SCHEMA = vol.Schema(
         vol.Optional("duration_minutes"): vol.All(vol.Coerce(float), vol.Range(min=0)),
         vol.Optional("bedtime"): cv.string,
         vol.Optional("wake_time"): cv.string,
-        vol.Optional("source"): cv.string,
+        vol.Optional("source"): NON_EMPTY_STRING,
     }
 )
 LOG_CUSTOM_METRIC_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         **DATE_FIELD,
-        vol.Required("name"): cv.string,
-        vol.Required("value"): vol.Any(vol.Coerce(float), cv.string),
-        vol.Optional("unit"): cv.string,
+        vol.Required("name"): NON_EMPTY_STRING,
+        vol.Required("value"): vol.Any(vol.Coerce(float), NON_EMPTY_STRING),
+        vol.Optional("unit"): NON_EMPTY_STRING,
         vol.Optional("notes"): cv.string,
     }
 )
@@ -165,11 +175,11 @@ LOG_FOOD_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         **DATE_FIELD,
-        vol.Required("food"): cv.string,
+        vol.Required("food"): NON_EMPTY_STRING,
         vol.Required("quantity"): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional("unit"): cv.string,
+        vol.Optional("unit"): NON_EMPTY_STRING,
         vol.Optional("meal_type", default="snacks"): vol.In(MEAL_TYPES),
-        vol.Optional("meal_type_id"): cv.string,
+        vol.Optional("meal_type_id"): UUID_VALUE,
     }
 )
 UPDATE_FOOD_ENTRY_SCHEMA = vol.Schema(
@@ -180,7 +190,7 @@ UPDATE_FOOD_ENTRY_SCHEMA = vol.Schema(
             ("food_entry", "food_entry_meal")
         ),
         vol.Optional("quantity"): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional("unit"): cv.string,
+        vol.Optional("unit"): NON_EMPTY_STRING,
         vol.Optional("meal_type"): vol.In(MEAL_TYPES),
         vol.Optional("meal_type_id"): UUID_VALUE,
     }
@@ -211,7 +221,7 @@ LOG_EXERCISE_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         **DATE_FIELD,
-        vol.Required("exercise"): cv.string,
+        vol.Required("exercise"): NON_EMPTY_STRING,
         vol.Optional("entry_time"): cv.string,
         vol.Optional("notes"): cv.string,
         vol.Optional("duration_minutes"): vol.All(vol.Coerce(float), vol.Range(min=0)),
@@ -251,8 +261,8 @@ DELETE_EXERCISE_ENTRY_SCHEMA = vol.Schema(
 CREATE_EXERCISE_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
-        vol.Required("name"): cv.string,
-        vol.Optional("category"): cv.string,
+        vol.Required("name"): NON_EMPTY_STRING,
+        vol.Optional("category"): NON_EMPTY_STRING,
         vol.Optional("description"): cv.string,
         vol.Optional("calories_per_hour"): vol.All(vol.Coerce(float), vol.Range(min=0)),
         vol.Optional("modality"): vol.In(
@@ -263,16 +273,18 @@ CREATE_EXERCISE_SCHEMA = vol.Schema(
 CREATE_WORKOUT_PRESET_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
-        vol.Required("name"): cv.string,
-        vol.Required("exercises"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Required("name"): NON_EMPTY_STRING,
+        vol.Required("exercises"): vol.All(
+            cv.ensure_list, vol.Length(min=1), [NON_EMPTY_STRING]
+        ),
     }
 )
 LOG_WORKOUT_PRESET_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         **DATE_FIELD,
-        vol.Exclusive("preset_id", "preset"): cv.string,
-        vol.Exclusive("preset_name", "preset"): cv.string,
+        vol.Exclusive("preset_id", "preset"): UUID_VALUE,
+        vol.Exclusive("preset_name", "preset"): NON_EMPTY_STRING,
     }
 )
 SET_GOALS_SCHEMA = vol.Schema(
@@ -290,7 +302,7 @@ LOG_HABIT_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         **DATE_FIELD,
-        vol.Required("habit_id"): cv.string,
+        vol.Required("habit_id"): UUID_VALUE,
         vol.Required("completed"): cv.boolean,
     }
 )
@@ -298,7 +310,7 @@ START_FASTING_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         vol.Optional("start_time"): cv.datetime,
-        vol.Optional("fasting_type"): cv.string,
+        vol.Optional("fasting_type"): NON_EMPTY_STRING,
     }
 )
 LOG_FASTING_WINDOW_SCHEMA = vol.Schema(
@@ -309,7 +321,7 @@ LOG_FASTING_WINDOW_SCHEMA = vol.Schema(
         vol.Optional("fasting_status", default="COMPLETED"): vol.In(
             ("COMPLETED", "CANCELLED")
         ),
-        vol.Optional("fasting_type"): cv.string,
+        vol.Optional("fasting_type"): NON_EMPTY_STRING,
     }
 )
 
@@ -330,6 +342,12 @@ def async_register_services(hass: HomeAssistant) -> None:
 
         try:
             if service == SERVICE_REFRESH:
+                previous_tools = set(client.tools)
+                await client.async_list_tools()
+                async_update_connection_issues(hass, entry, client)
+                if set(client.tools) != previous_tools:
+                    hass.config_entries.async_schedule_reload(entry.entry_id)
+                    return {"result": "reloading"}
                 runtime.coordinator.invalidate_sections("goals", "trends")
                 await runtime.coordinator.async_request_refresh()
                 return {"result": "refreshed"}
@@ -372,9 +390,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                     and end_date is not None
                     and end_date < start_date
                 ):
-                    raise ServiceValidationError(
-                        "end_date must not be before start_date"
-                    )
+                    raise _validation_error("end_date_before_start")
                 result = await client.async_get_habit_history(
                     data["habit_id"],
                     start_date=start_date,
@@ -404,9 +420,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                         "body_water",
                     )
                 ):
-                    raise ServiceValidationError(
-                        "At least one biometric measurement is required"
-                    )
+                    raise _validation_error("biometric_required")
                 result = await client.async_log_biometrics(
                     entry_date=entry_date, **data
                 )
@@ -424,9 +438,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                 if not any(
                     key in data for key in ("duration_minutes", "bedtime", "wake_time")
                 ):
-                    raise ServiceValidationError(
-                        "Provide duration_minutes, bedtime, or wake_time"
-                    )
+                    raise _validation_error("sleep_value_required")
                 duration = data.get("duration_minutes")
                 result = await client.async_log_sleep(
                     entry_date,
@@ -463,9 +475,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                     key in data
                     for key in ("quantity", "unit", "meal_type", "meal_type_id")
                 ):
-                    raise ServiceValidationError(
-                        "Provide quantity, unit, meal_type, or meal_type_id"
-                    )
+                    raise _validation_error("food_update_required")
                 result = await client.async_update_food_entry(entry_id, **data)
             elif service == SERVICE_DELETE_FOOD_ENTRY:
                 entry_id = data.pop("entry_id")
@@ -483,9 +493,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                 if entry_date_value is not None:
                     data["entry_date"] = entry_date
                 if not data:
-                    raise ServiceValidationError(
-                        "At least one exercise entry field is required"
-                    )
+                    raise _validation_error("exercise_update_required")
                 result = await client.async_update_exercise_entry(entry_id, **data)
             elif service == SERVICE_DELETE_EXERCISE_ENTRY:
                 entry_id = data.pop("entry_id")
@@ -499,14 +507,14 @@ def async_register_services(hass: HomeAssistant) -> None:
                 )
             elif service == SERVICE_LOG_WORKOUT_PRESET:
                 if not data.get("preset_id") and not data.get("preset_name"):
-                    raise ServiceValidationError("Provide preset_id or preset_name")
+                    raise _validation_error("preset_required")
                 result = await client.async_log_workout_preset(
                     entry_date=entry_date, **data
                 )
             elif service == SERVICE_SET_GOALS:
                 start_date = _date_string(data.pop("start_date", None))
                 if not data:
-                    raise ServiceValidationError("At least one goal value is required")
+                    raise _validation_error("goal_required")
                 result = await client.async_set_goals(start_date=start_date, **data)
             elif service == SERVICE_LOG_HABIT:
                 result = await client.async_log_habit(
@@ -524,7 +532,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                 if dt_util.as_utc(_as_aware(end_time)) <= dt_util.as_utc(
                     _as_aware(start_time)
                 ):
-                    raise ServiceValidationError("end_time must be after start_time")
+                    raise _validation_error("end_time_after_start")
                 result = await client.async_log_fasting(
                     _timestamp_string(start_time),
                     end_time=_timestamp_string(end_time),
@@ -532,7 +540,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                     fasting_type=data.get("fasting_type"),
                 )
             else:
-                raise ServiceValidationError(f"Unknown SparkyFitness action: {service}")
+                raise _validation_error("unknown_action", action=service)
 
             if service == SERVICE_SET_GOALS:
                 runtime.coordinator.invalidate_sections("goals")
@@ -553,11 +561,11 @@ def async_register_services(hass: HomeAssistant) -> None:
             return {"result": result}
         except SparkyFitnessAuthenticationError as err:
             entry.async_start_reauth(hass)
-            raise HomeAssistantError("SparkyFitness authentication failed") from err
+            raise _action_error("authentication_failed") from err
         except SparkyFitnessUnsupportedFeatureError as err:
-            raise ServiceValidationError(str(err)) from err
+            raise _validation_error("unsupported_feature", error=str(err)) from err
         except SparkyFitnessError as err:
-            raise HomeAssistantError(str(err)) from err
+            raise _action_error("action_failed", error=str(err)) from err
 
     registrations = {
         SERVICE_REFRESH: vol.Schema(ENTRY_FIELD),
@@ -623,23 +631,19 @@ def _resolve_entry(hass: HomeAssistant, entry_id: str | None):
         for entry in entries:
             if entry.entry_id == entry_id:
                 return entry
-        raise ServiceValidationError(
-            f'SparkyFitness config entry "{entry_id}" is not loaded'
-        )
+        raise _validation_error("entry_not_loaded", entry_id=entry_id)
     if not entries:
-        raise ServiceValidationError("No loaded SparkyFitness config entry exists")
+        raise _validation_error("no_loaded_entry")
     if len(entries) > 1:
-        raise ServiceValidationError(
-            "Multiple SparkyFitness entries exist; provide config_entry_id"
-        )
+        raise _validation_error("entry_id_required")
     return entries[0]
 
 
 def _date_string(value: date | str | None) -> str:
-    """Render a service date, defaulting to Home Assistant's local date."""
+    """Render a service date, letting SparkyFitness resolve its own today."""
 
     if value is None:
-        return dt_util.now().date().isoformat()
+        return "today"
     if isinstance(value, date):
         return value.isoformat()
     return str(value)
@@ -658,14 +662,14 @@ def _date_range_arguments(data: dict[str, Any]) -> dict[str, str]:
     start_date = data.get("start_date")
     end_date = data.get("end_date")
     if single_date is not None and (start_date is not None or end_date is not None):
-        raise ServiceValidationError("Use date or start_date/end_date, not both")
+        raise _validation_error("date_fields_mutually_exclusive")
     if (start_date is None) != (end_date is None):
-        raise ServiceValidationError("Provide both start_date and end_date")
+        raise _validation_error("date_range_incomplete")
     if start_date is not None and end_date is not None:
         start = _date_string(start_date)
         end = _date_string(end_date)
         if end < start:
-            raise ServiceValidationError("end_date must not be before start_date")
+            raise _validation_error("end_date_before_start")
         return {"start_date": start, "end_date": end}
     if single_date is not None:
         return {"date": _date_string(single_date)}
@@ -681,6 +685,28 @@ def _response_value(result: Any) -> Any:
         return extract_json(result)
     except SparkyFitnessError:
         return result
+
+
+def _validation_error(
+    translation_key: str, **placeholders: str
+) -> ServiceValidationError:
+    """Create a localized Home Assistant action validation error."""
+
+    return ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key=translation_key,
+        translation_placeholders=placeholders or None,
+    )
+
+
+def _action_error(translation_key: str, **placeholders: str) -> HomeAssistantError:
+    """Create a localized Home Assistant action execution error."""
+
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key=translation_key,
+        translation_placeholders=placeholders or None,
+    )
 
 
 def _water_to_ml(amount: float, unit: str) -> float:

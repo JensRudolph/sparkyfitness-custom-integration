@@ -204,7 +204,26 @@ async def test_advertised_action_schema_is_enforced() -> None:
     assert [request["method"] for request in session.requests] == [
         "initialize",
         "tools/list",
+        "tools/list",
     ]
+
+
+async def test_sse_notification_is_skipped_before_matching_response() -> None:
+    """An ID-less progress notification cannot replace the requested result."""
+
+    body = (
+        'data: {"jsonrpc":"2.0","method":"notifications/progress",'
+        '"params":{"progress":1}}\n\n'
+        'data: {"jsonrpc":"2.0","id":1,"result":{"tools":[]}}\n\n'
+    )
+    response = FakeResponse(
+        body,
+        headers={"Content-Type": "text/event-stream"},
+    )
+    client = SparkyFitnessMcpClient(
+        FakeSession(lambda _: response), "https://example.com", "secret"
+    )
+    assert await client._request("tools/list") == {"tools": []}
 
 
 @pytest.mark.parametrize("status", [401, 403])

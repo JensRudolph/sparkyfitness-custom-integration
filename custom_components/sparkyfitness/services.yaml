@@ -1,6 +1,6 @@
 refresh:
   name: Refresh
-  description: Immediately refresh all supported SparkyFitness entities through MCP.
+  description: Rediscover MCP tools and immediately refresh all supported SparkyFitness entities. The entry reloads if capabilities changed.
   fields:
     config_entry_id:
       name: Config entry
@@ -35,7 +35,7 @@ log_weight:
           options: [kg, lbs]
     entry_date: &entry_date
       name: Entry date
-      description: Defaults to today in Home Assistant's time zone.
+      description: Defaults to today in the selected SparkyFitness user's time zone.
       selector:
         date:
 
@@ -367,6 +367,7 @@ log_workout_preset:
     config_entry_id: *config_entry
     preset_id:
       name: Preset ID
+      description: UUID returned by list_workout_presets.
       selector: {text: {}}
     preset_name:
       name: Preset name
@@ -403,6 +404,7 @@ log_habit:
     config_entry_id: *config_entry
     habit_id:
       name: Habit ID
+      description: UUID returned by list_habits.
       required: true
       selector: {text: {}}
     completed:
@@ -537,6 +539,7 @@ get_habit_history:
     config_entry_id: *config_entry
     habit_id:
       name: Habit ID
+      description: UUID returned by list_habits.
       required: true
       selector: {text: {}}
     start_date:

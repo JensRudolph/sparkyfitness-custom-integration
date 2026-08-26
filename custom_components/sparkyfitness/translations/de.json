@@ -12,6 +12,12 @@
         "title": "SparkyFitness erneut authentifizieren",
         "description": "Der API-Schlüssel wurde abgelehnt oder widerrufen. Gib einen neuen persönlichen API-Schlüssel ein.",
         "data": {"api_key": "API-Schlüssel"}
+      },
+      "reconfigure": {
+        "title": "SparkyFitness neu konfigurieren",
+        "description": "Ändere den MCP-Endpunkt oder die TLS-Zertifikatsprüfung. Der vorhandene API-Schlüssel wird erneut verwendet und geprüft.",
+        "data": {"url": "SparkyFitness-URL", "verify_ssl": "TLS-Zertifikat prüfen"},
+        "data_description": {"verify_ssl": "Nur deaktivieren, wenn du das Sicherheitsrisiko eines ungeprüften Zertifikats verstehst."}
       }
     },
     "error": {
@@ -23,7 +29,7 @@
       "timeout": "Der SparkyFitness-MCP-Endpunkt hat nicht rechtzeitig geantwortet.",
       "unknown": "Ein unerwarteter Fehler ist aufgetreten. Prüfe die Protokolle."
     },
-    "abort": {"already_configured": "Dieses SparkyFitness-Konto ist bereits eingerichtet.", "reauth_successful": "SparkyFitness wurde erfolgreich erneut authentifiziert."}
+    "abort": {"already_configured": "Dieses SparkyFitness-Konto ist bereits eingerichtet.", "reauth_successful": "SparkyFitness wurde erfolgreich erneut authentifiziert.", "reconfigure_successful": "SparkyFitness wurde erfolgreich neu konfiguriert."}
   },
   "options": {
     "step": {
@@ -49,6 +55,7 @@
     "sensor": {
       "weight": {"name": "Gewicht"}, "steps_today": {"name": "Schritte heute"}, "calories_today": {"name": "Kalorien heute"},
       "protein_today": {"name": "Protein heute"}, "carbs_today": {"name": "Kohlenhydrate heute"}, "fat_today": {"name": "Fett heute"},
+      "fiber_today": {"name": "Ballaststoffe heute"}, "sugar_today": {"name": "Zucker heute"}, "sodium_today": {"name": "Natrium heute"}, "potassium_today": {"name": "Kalium heute"},
       "water_today": {"name": "Wasser heute"}, "sleep_duration": {"name": "Schlafdauer"}, "sleep_score": {"name": "Schlafwert"},
       "mood": {"name": "Stimmung"}, "body_fat": {"name": "Körperfett"}, "exercise_count_today": {"name": "Trainingseinträge heute"},
       "logging_streak": {"name": "Protokollierungsserie"},
@@ -83,5 +90,29 @@
       "weight_entries_30d": {"name": "Gewichtseinträge (30 Tage)"}
     },
     "binary_sensor": {"fasting": {"name": "Fasten"}, "fasting_goal_reached": {"name": "Fastenziel erreicht"}}
+  },
+  "exceptions": {
+    "authentication_failed": {"message": "Die SparkyFitness-Authentifizierung ist fehlgeschlagen."},
+    "action_failed": {"message": "Die SparkyFitness-Aktion ist fehlgeschlagen: {error}"},
+    "unsupported_feature": {"message": "Der verbundene SparkyFitness-Server unterstützt diese Aktion nicht: {error}"},
+    "entry_not_loaded": {"message": "Der SparkyFitness-Konfigurationseintrag {entry_id} ist nicht geladen."},
+    "no_loaded_entry": {"message": "Es ist kein SparkyFitness-Konfigurationseintrag geladen."},
+    "entry_id_required": {"message": "Es sind mehrere SparkyFitness-Einträge vorhanden; gib config_entry_id an."},
+    "date_fields_mutually_exclusive": {"message": "Verwende entweder date oder start_date/end_date."},
+    "date_range_incomplete": {"message": "Gib start_date und end_date gemeinsam an."},
+    "end_date_before_start": {"message": "end_date darf nicht vor start_date liegen."},
+    "biometric_required": {"message": "Mindestens ein biometrischer Messwert ist erforderlich."},
+    "sleep_value_required": {"message": "Gib duration_minutes, bedtime oder wake_time an."},
+    "food_update_required": {"message": "Gib quantity, unit, meal_type oder meal_type_id an."},
+    "exercise_update_required": {"message": "Mindestens ein Feld des Trainingseintrags ist erforderlich."},
+    "preset_required": {"message": "Gib preset_id oder preset_name an."},
+    "goal_required": {"message": "Mindestens ein Zielwert ist erforderlich."},
+    "end_time_after_start": {"message": "end_time muss nach start_time liegen."},
+    "unknown_action": {"message": "Unbekannte SparkyFitness-Aktion: {action}"}
+  },
+  "issues": {
+    "missing_tools": {"title": "Aktivierte SparkyFitness-Funktionen sind nicht verfügbar", "description": "Der verbundene MCP-Server stellt folgende Werkzeuge für aktivierte Funktionsgruppen nicht bereit: {tools}. Aktualisiere SparkyFitness oder deaktiviere die betroffenen Funktionsgruppen in den Integrationsoptionen."},
+    "unsupported_protocol": {"title": "Ungeprüfte MCP-Protokollversion", "description": "Der Server hat MCP-Protokollversion {version} ausgehandelt, die von dieser Integration noch nicht geprüft wurde. Aktualisiere die Integration oder verwende eine unterstützte SparkyFitness-Version."},
+    "authentication_failed": {"title": "SparkyFitness-Authentifizierung fehlgeschlagen", "description": "Der API-Schlüssel wurde abgelehnt oder widerrufen. Öffne die SparkyFitness-Integration und führe die erneute Authentifizierung durch."}
   }
 }
