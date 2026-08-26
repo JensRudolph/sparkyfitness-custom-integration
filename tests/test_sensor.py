@@ -1,5 +1,6 @@
 """Tests for capability-gated sensor descriptions."""
 
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -15,7 +16,9 @@ from custom_components.sparkyfitness.models import SparkyFitnessData
 from custom_components.sparkyfitness.sensor import (
     HABIT_ANALYTICS_SENSORS,
     SENSORS,
+    SparkyFitnessFailedSectionsSensor,
     SparkyFitnessHabitAnalyticsSensor,
+    SparkyFitnessLastSuccessfulRefreshSensor,
 )
 
 HABIT_ID = "11111111-1111-1111-1111-111111111111"
@@ -111,4 +114,28 @@ def test_habit_analytics_are_optional_named_and_auditable() -> None:
         "habit_id": HABIT_ID,
         "completed_days": 3,
         "tracked_days": 4,
+    }
+
+
+def test_optional_diagnostic_sensors_keep_technical_state_auditable() -> None:
+    """Diagnostics expose timestamps and section errors without health values."""
+
+    coordinator = MagicMock()
+    coordinator.config_entry = SimpleNamespace(entry_id="entry-1", options={}, data={})
+    coordinator.client.server_version = "1.6.3"
+    coordinator.client.endpoint = "https://sparky.example.com/mcp"
+    coordinator.last_update_success = False
+    coordinator.last_successful_refresh = datetime(2026, 8, 26, tzinfo=UTC)
+    coordinator.data = SparkyFitnessData(
+        section_errors={"nutrition": "SparkyFitnessConnectionError"}
+    )
+
+    refresh = SparkyFitnessLastSuccessfulRefreshSensor(coordinator)
+    failures = SparkyFitnessFailedSectionsSensor(coordinator)
+
+    assert refresh.available is True
+    assert refresh.native_value == coordinator.last_successful_refresh
+    assert failures.native_value == 1
+    assert failures.extra_state_attributes == {
+        "sections": {"nutrition": "SparkyFitnessConnectionError"}
     }
