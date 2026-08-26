@@ -1,0 +1,241 @@
+"""Tests for the direct Streamable HTTP MCP client."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Callable
+from typing import Any
+
+import aiohttp
+import pytest
+
+from custom_components.sparkyfitness.api import (
+    SparkyFitnessMcpClient,
+    normalize_mcp_endpoint,
+)
+from custom_components.sparkyfitness.exceptions import (
+    SparkyFitnessAuthenticationError,
+    SparkyFitnessConnectionError,
+    SparkyFitnessTimeoutError,
+    SparkyFitnessToolError,
+    SparkyFitnessUnsupportedFeatureError,
+)
+
+
+class FakeResponse:
+    """Minimal aiohttp response context manager."""
+
+    def __init__(
+        self,
+        body: dict[str, Any] | str,
+        *,
+        status: int = 200,
+        headers: dict[str, str] | None = None,
+        enter_delay: float = 0,
+    ) -> None:
+        self.status = status
+        self.headers = headers or {"Content-Type": "application/json"}
+        self._text = body if isinstance(body, str) else json.dumps(body)
+        self._enter_delay = enter_delay
+
+    async def __aenter__(self):
+        if self._enter_delay:
+            await asyncio.sleep(self._enter_delay)
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+    async def text(self) -> str:
+        return self._text
+
+    async def read(self) -> bytes:
+        return self._text.encode()
+
+
+class FakeSession:
+    """Route posted JSON-RPC messages to a response factory."""
+
+    def __init__(self, route: Callable[[dict[str, Any]], FakeResponse]) -> None:
+        self.route = route
+        self.requests: list[dict[str, Any]] = []
+
+    def post(self, _url: str, *, json: dict[str, Any], **_kwargs) -> FakeResponse:
+        self.requests.append(json)
+        return self.route(json)
+
+    def delete(self, *_args, **_kwargs) -> FakeResponse:
+        return FakeResponse({}, status=204)
+
+
+def _success_route(message: dict[str, Any]) -> FakeResponse:
+    request_id = message["id"]
+    if message["method"] == "initialize":
+        result = {
+            "protocolVersion": "2025-11-25",
+            "serverInfo": {"name": "sparkyfitness-mcp-server", "version": "1.6.3"},
+        }
+    elif message["method"] == "tools/list":
+        result = {
+            "tools": [
+                {
+                    "name": "sparky_manage_checkin",
+                    "description": "check-in",
+                    "inputSchema": {"type": "object"},
+                }
+            ]
+        }
+    else:
+        result = {"content": [{"type": "text", "text": "ok"}]}
+    return FakeResponse({"jsonrpc": "2.0", "id": request_id, "result": result})
+
+
+def test_normalize_mcp_endpoint() -> None:
+    """Base URLs and endpoint URLs normalize deterministically."""
+
+    assert normalize_mcp_endpoint("https://example.com/") == "https://example.com/mcp"
+    assert (
+        normalize_mcp_endpoint("https://example.com/mcp/") == "https://example.com/mcp"
+    )
+    assert (
+        normalize_mcp_endpoint("https://example.com/base")
+        == "https://example.com/base/mcp"
+    )
+    with pytest.raises(ValueError):
+        normalize_mcp_endpoint("example.com")
+
+
+async def test_initialize_list_tools_and_call() -> None:
+    """The client initializes, discovers schemas, and dispatches a tool call."""
+
+    session = FakeSession(_success_route)
+    client = SparkyFitnessMcpClient(session, "https://example.com", "secret")
+    tools = await client.async_test_connection()
+    assert list(tools) == ["sparky_manage_checkin"]
+    assert client.server_version == "1.6.3"
+    assert (
+        await client.async_call_tool(
+            "sparky_manage_checkin", {"action": "get_fasting_status"}
+        )
+        == "ok"
+    )
+    assert [request["method"] for request in session.requests] == [
+        "initialize",
+        "tools/list",
+        "tools/call",
+    ]
+
+
+async def test_tool_error_is_raised() -> None:
+    """MCP isError results do not masquerade as successful writes."""
+
+    def route(message):
+        if message["method"] != "tools/call":
+            return _success_route(message)
+        return FakeResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": message["id"],
+                "result": {
+                    "isError": True,
+                    "content": [{"type": "text", "text": "Error [VALIDATION]"}],
+                },
+            }
+        )
+
+    client = SparkyFitnessMcpClient(FakeSession(route), "https://example.com", "secret")
+    await client.async_test_connection()
+    with pytest.raises(SparkyFitnessToolError, match="VALIDATION"):
+        await client.async_call_tool("sparky_manage_checkin", {})
+
+
+async def test_advertised_action_schema_is_enforced() -> None:
+    """Writes absent from a server's advertised schema fail before dispatch."""
+
+    def route(message):
+        if message["method"] != "tools/list":
+            return _success_route(message)
+        return FakeResponse(
+            {
+                "jsonrpc": "2.0",
+                "id": message["id"],
+                "result": {
+                    "tools": [
+                        {
+                            "name": "sparky_manage_checkin",
+                            "description": "check-in",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "action": {"enum": ["get_fasting_status"]}
+                                },
+                            },
+                        }
+                    ]
+                },
+            }
+        )
+
+    session = FakeSession(route)
+    client = SparkyFitnessMcpClient(session, "https://example.com", "secret")
+    await client.async_test_connection()
+
+    with pytest.raises(
+        SparkyFitnessUnsupportedFeatureError, match="does not support action"
+    ):
+        await client.async_call_tool(
+            "sparky_manage_checkin", {"action": "log_biometrics"}
+        )
+
+    assert [request["method"] for request in session.requests] == [
+        "initialize",
+        "tools/list",
+    ]
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_invalid_auth(status: int) -> None:
+    """Both common authorization status codes map to reauthentication."""
+
+    client = SparkyFitnessMcpClient(
+        FakeSession(lambda _: FakeResponse({}, status=status)),
+        "https://example.com",
+        "secret",
+    )
+    with pytest.raises(SparkyFitnessAuthenticationError):
+        await client.async_connect()
+
+
+async def test_timeout_and_connection_drop() -> None:
+    """Timeout and connection drop have distinct stable exception classes."""
+
+    slow = SparkyFitnessMcpClient(
+        FakeSession(lambda _: FakeResponse({}, enter_delay=0.05)),
+        "https://example.com",
+        "secret",
+        timeout=0.001,
+    )
+    with pytest.raises(SparkyFitnessTimeoutError):
+        await slow.async_connect()
+
+    class BrokenSession(FakeSession):
+        def post(self, *_args, **_kwargs):
+            raise aiohttp.ClientConnectionError
+
+    broken = SparkyFitnessMcpClient(
+        BrokenSession(_success_route), "https://example.com", "secret"
+    )
+    with pytest.raises(SparkyFitnessConnectionError):
+        await broken.async_connect()
+
+
+async def test_reconnect_after_disconnect() -> None:
+    """A disconnected client initializes again before its next request."""
+
+    session = FakeSession(_success_route)
+    client = SparkyFitnessMcpClient(session, "https://example.com", "secret")
+    await client.async_test_connection()
+    await client.async_disconnect()
+    await client.async_list_tools()
+    assert [request["method"] for request in session.requests].count("initialize") == 2
