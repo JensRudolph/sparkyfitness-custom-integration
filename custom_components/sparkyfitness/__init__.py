@@ -9,6 +9,7 @@ from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
 )
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import SparkyFitnessMcpClient
@@ -16,6 +17,7 @@ from .const import (
     CONF_API_KEY,
     CONF_VERIFY_SSL,
     DEFAULT_VERIFY_SSL,
+    DOMAIN,
     PLATFORMS,
 )
 from .coordinator import SparkyFitnessCoordinator
@@ -26,6 +28,8 @@ from .exceptions import (
 )
 from .models import SparkyFitnessRuntimeData
 from .services import async_register_services
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type SparkyFitnessConfigEntry = ConfigEntry[SparkyFitnessRuntimeData]
 
