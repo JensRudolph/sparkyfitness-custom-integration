@@ -407,18 +407,24 @@ async def test_start_fasting_rejects_an_existing_active_session(
     coordinator.async_request_refresh.assert_not_awaited()
 
 
-async def test_numeric_workout_preset_id_is_forwarded(hass, service_runtime) -> None:
-    """Opaque numeric IDs returned by SparkyFitness remain usable by the action."""
+@pytest.mark.parametrize(
+    ("preset_id", "mcp_preset_id"),
+    [(1, "1"), ("1", "1"), (ENTRY_ID, ENTRY_ID)],
+)
+async def test_workout_preset_id_is_normalized_for_mcp(
+    hass, service_runtime, preset_id, mcp_preset_id
+) -> None:
+    """Numeric and textual IDs are sent using the MCP server's text contract."""
 
     client, coordinator = service_runtime
     response = await _call(
         hass,
         SERVICE_LOG_WORKOUT_PRESET,
-        {"preset_id": 1, "entry_date": "2026-08-26"},
+        {"preset_id": preset_id, "entry_date": "2026-08-26"},
     )
 
     client.async_log_workout_preset.assert_awaited_once_with(
-        entry_date="2026-08-26", preset_id=1
+        entry_date="2026-08-26", preset_id=mcp_preset_id
     )
     coordinator.async_request_refresh.assert_awaited_once()
     assert response == {"result": "preset logged"}
@@ -444,7 +450,8 @@ def test_uuid_and_non_empty_action_validation() -> None:
         CREATE_WORKOUT_PRESET_SCHEMA({"name": " ", "exercises": []})
     with pytest.raises(vol.Invalid):
         LOG_WORKOUT_PRESET_SCHEMA({"preset_id": 0})
-    assert LOG_WORKOUT_PRESET_SCHEMA({"preset_id": 1})["preset_id"] == 1
+    assert LOG_WORKOUT_PRESET_SCHEMA({"preset_id": 1})["preset_id"] == "1"
+    assert LOG_WORKOUT_PRESET_SCHEMA({"preset_id": "1"})["preset_id"] == "1"
     assert LOG_WORKOUT_PRESET_SCHEMA({"preset_id": ENTRY_ID})["preset_id"] == ENTRY_ID
 
 

@@ -77,15 +77,15 @@ def _non_empty_string(value: Any) -> str:
 NON_EMPTY_STRING = vol.All(_non_empty_string, vol.Length(max=200))
 
 
-def _preset_id(value: Any) -> int | str:
-    """Validate an opaque positive numeric or non-empty text preset ID."""
+def _preset_id(value: Any) -> str:
+    """Validate a preset ID and normalize it to the MCP text contract."""
 
     if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise vol.Invalid("preset ID must be a positive integer or text")
     if isinstance(value, int):
         if value <= 0:
             raise vol.Invalid("numeric preset ID must be positive")
-        return value
+        return str(value)
     text = NON_EMPTY_STRING(value)
     try:
         numeric_id = int(text)
@@ -93,7 +93,7 @@ def _preset_id(value: Any) -> int | str:
         return text
     if numeric_id <= 0:
         raise vol.Invalid("numeric preset ID must be positive")
-    return numeric_id
+    return text
 
 
 PRESET_ID_VALUE = _preset_id
