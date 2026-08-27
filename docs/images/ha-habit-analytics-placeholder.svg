@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Home Assistant habit analytics screenshot placeholder</title>
+  <desc id="desc">Stylized habit completion cards marked screenshot coming soon.</desc>
+  <rect width="960" height="540" rx="24" fill="#0f172a"/>
+  <rect x="18" y="18" width="924" height="504" rx="18" fill="#111827" stroke="#334155" stroke-width="2"/>
+  <rect x="18" y="18" width="924" height="58" rx="18" fill="#1e293b"/>
+  <circle cx="52" cy="47" r="12" fill="#18bcf2"/>
+  <text x="78" y="55" fill="#f8fafc" font-family="Arial, sans-serif" font-size="22" font-weight="700">Habit insights</text>
+  <text x="58" y="128" fill="#f8fafc" font-family="Arial, sans-serif" font-size="25" font-weight="700">Daily habits</text>
+  <text x="58" y="154" fill="#94a3b8" font-family="Arial, sans-serif" font-size="15">Completion rates use explicitly tracked days</text>
+  <g fill="#172033" stroke="#334155" stroke-width="2">
+    <rect x="58" y="190" width="258" height="216" rx="16"/>
+    <rect x="351" y="190" width="258" height="216" rx="16"/>
+    <rect x="644" y="190" width="258" height="216" rx="16"/>
+  </g>
+  <g font-family="Arial, sans-serif">
+    <text x="84" y="229" fill="#94a3b8" font-size="15">7-DAY COMPLETION</text>
+    <text x="84" y="293" fill="#f8fafc" font-size="48" font-weight="700">—%</text>
+    <rect x="84" y="328" width="206" height="14" rx="7" fill="#334155"/>
+    <rect x="84" y="328" width="126" height="14" rx="7" fill="#18bcf2"/>
+    <text x="377" y="229" fill="#94a3b8" font-size="15">30-DAY COMPLETION</text>
+    <text x="377" y="293" fill="#f8fafc" font-size="48" font-weight="700">—%</text>
+    <rect x="377" y="328" width="206" height="14" rx="7" fill="#334155"/>
+    <rect x="377" y="328" width="154" height="14" rx="7" fill="#ef3340"/>
+    <text x="670" y="229" fill="#94a3b8" font-size="15">CURRENT STREAK</text>
+    <text x="670" y="293" fill="#f8fafc" font-size="48" font-weight="700">— days</text>
+    <circle cx="687" cy="345" r="11" fill="#ef3340"/>
+    <circle cx="723" cy="345" r="11" fill="#ef3340"/>
+    <circle cx="759" cy="345" r="11" fill="#ef3340"/>
+    <circle cx="795" cy="345" r="11" fill="#334155"/>
+    <circle cx="831" cy="345" r="11" fill="#334155"/>
+  </g>
+  <rect x="246" y="458" width="468" height="38" rx="19" fill="#ef3340"/>
+  <text x="480" y="483" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="17" font-weight="700">SCREENSHOT COMING SOON</text>
+</svg>

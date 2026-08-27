@@ -1,270 +1,87 @@
-# SparkyFitness for Home Assistant
+<p align="right">
+  <a href="README.de.md">Deutsch</a> · <strong>English</strong>
+</p>
 
-A privacy-conscious Home Assistant custom integration that connects directly to a
-self-hosted [SparkyFitness](https://github.com/CodeWithCJ/SparkyFitness) instance
-through its Model Context Protocol (MCP) endpoint.
+<p align="center">
+  <img src="custom_components/sparkyfitness/brand/icon.png" alt="SparkyFitness" width="150">
+</p>
 
-The integration reads current health and fitness data into Home Assistant and
-provides explicit actions for writing data back. It does not use an LLM, a cloud
-relay, private REST endpoints, database access, browser cookies, or web scraping.
+<h1 align="center">SparkyFitness for Home Assistant</h1>
 
-```text
-Home Assistant
-  ├── Config flow / options / reauthentication
-  ├── DataUpdateCoordinator
-  ├── Sensors and binary sensors
-  ├── Explicit Home Assistant actions
-  └── Privacy-preserving diagnostics
-             │
-             ▼
-  Direct Streamable HTTP MCP client
-             │
-             ▼
-  https://your-sparkyfitness-host/mcp
-```
+<p align="center">
+  Bring your self-hosted fitness data into Home Assistant — directly over MCP,
+  without a cloud relay or an LLM.
+</p>
 
-## Features
+<p align="center">
+  <a href="https://github.com/JensRudolph/sparkyfitness-custom-integration/releases/latest"><img src="https://img.shields.io/github/v/release/JensRudolph/sparkyfitness-custom-integration?style=for-the-badge" alt="Latest release"></a>
+  <a href="https://github.com/JensRudolph/sparkyfitness-custom-integration/actions/workflows/validate.yml"><img src="https://img.shields.io/github/actions/workflow/status/JensRudolph/sparkyfitness-custom-integration/validate.yml?branch=main&style=for-the-badge&label=Validate" alt="Validation status"></a>
+  <img src="https://img.shields.io/badge/Home%20Assistant-2026.8%2B-18BCF2?style=for-the-badge&logo=homeassistant&logoColor=white" alt="Home Assistant 2026.8 or newer">
+  <img src="https://img.shields.io/badge/HACS-Custom-41BDF5?style=for-the-badge" alt="HACS custom repository">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/JensRudolph/sparkyfitness-custom-integration?style=for-the-badge" alt="MIT license"></a>
+</p>
 
-- UI-only connection setup; no YAML credentials.
-- Direct asynchronous MCP transport using Home Assistant's shared `aiohttp`
-  session.
-- Bearer API-key authentication and TLS certificate verification by default.
-- MCP `initialize`, `tools/list`, `tools/call`, JSON responses, Streamable HTTP
-  SSE responses, protocol/session headers, timeouts, and explicit error mapping.
-- Runtime tool discovery: optional features disappear cleanly when a server does
-  not expose their tool.
-- Five-minute coordinated polling by default, configurable from 1–60 minutes;
-  sections without an enabled consuming entity are skipped.
-- Independent polling sections: a check-in failure does not discard valid
-  nutrition or engagement data.
-- Current goal sensors and structured 30-day aggregate sensors, with slower
-  polling for those more expensive data sets.
-- A native read-only workout calendar backed by the bounded exercise diary.
-- Optional per-habit 7-/30-day completion and streak sensors with auditable
-  denominators and hourly caching.
-- ID-scoped update/delete actions for food and exercise diary entries, with an
-  explicit confirmation field for permanent deletion.
-- Multiple SparkyFitness accounts/instances. Actions automatically target the
-  only loaded entry, or accept `config_entry_id` when several entries exist.
-- API-key reauthentication without deleting the config entry.
-- Reconfiguration of the MCP URL and TLS policy without recreating entities.
-- Optional technical connection, refresh-time, and partial-failure diagnostics.
-- English and German UI/entity translations.
-- HACS-ready repository layout and manual installation support.
+> [!IMPORTANT]
+> Your API key and health data travel only between Home Assistant and the
+> SparkyFitness MCP endpoint you configure. The integration has no telemetry,
+> cloud backend, LLM dependency, database access, or private REST fallback.
 
-## Requirements
+## See it in Home Assistant
 
-- Home Assistant 2026.8.0 or newer (Python 3.14.2+).
-- A current SparkyFitness release with its in-process Streamable HTTP MCP endpoint.
-- A personal SparkyFitness API key.
-- Network access from Home Assistant to the configured SparkyFitness host.
+| Device and entities | Workout calendar |
+|:---:|:---:|
+| ![Home Assistant device overview placeholder](docs/images/ha-device-overview-placeholder.svg) | ![Home Assistant workout calendar placeholder](docs/images/ha-workout-calendar-placeholder.svg) |
+| *Device overview — screenshot coming soon* | *Read-only workout calendar — screenshot coming soon* |
 
-## Create an API key
+| Habit insights | Action dialog |
+|:---:|:---:|
+| ![Home Assistant habit analytics placeholder](docs/images/ha-habit-analytics-placeholder.svg) | ![Home Assistant action dialog placeholder](docs/images/ha-action-dialog-placeholder.svg) |
+| *Optional completion and streak sensors — screenshot coming soon* | *Typed actions with native selectors — screenshot coming soon* |
 
-In SparkyFitness, open **Settings → Developer & Integrations → API Key
-Management** and create a personal API key. Treat it like a password.
+## What you get
 
-The server authenticates MCP requests with:
-
-```http
-Authorization: Bearer <API_KEY>
-```
-
-## Installation
-
-### HACS
-
-Until this repository is included in the HACS default catalog:
-
-1. Open HACS in Home Assistant.
-2. Open the three-dot menu and choose **Custom repositories**.
-3. Add `https://github.com/JensRudolph/sparkyfitness-custom-integration`
-   and select **Integration**.
-4. Install **SparkyFitness**.
-5. Restart Home Assistant.
-
-### Manual installation
-
-Copy the complete directory:
-
-```text
-custom_components/sparkyfitness
-```
-
-to:
-
-```text
-/config/custom_components/sparkyfitness
-```
-
-Restart Home Assistant after copying or updating it.
-
-## Configuration
-
-1. Go to **Settings → Devices & services**.
-2. Select **Add integration** and search for **SparkyFitness**.
-3. Enter either the base URL, such as
-   `https://sparkyfitness.example.com`, or the complete endpoint,
-   `https://sparkyfitness.example.com/mcp`.
-4. Optionally enter an account name such as `Jens` to distinguish multiple API
-   keys on the same server.
-5. Enter the personal API key.
-6. Keep TLS verification enabled.
-
-Before creating the entry, the flow initializes MCP, requests `tools/list`, and
-requires at least one characteristic SparkyFitness tool. It distinguishes
-connection, authentication, non-MCP, TLS, and timeout failures.
-
-### Options
-
-Open the integration's **Configure** dialog to change:
-
-- Update interval: 1–60 minutes (default: 5).
-- Account name used in the config-entry and device names.
-- TLS certificate verification.
-- Nutrition sensors.
-- Exercise sensors.
-- Check-in sensors.
-- Engagement sensors.
-- Goal sensors.
-- 30-day trend sensors.
-- Habit sensors.
-
-Disabling a feature group also prevents its unnecessary MCP polling calls.
-Disabling TLS verification is unsafe: it allows interception of both the API key
-and sensitive health data.
-
-Use the integration's **Reconfigure** action to change the MCP URL or TLS policy.
-The existing API key is validated against the new endpoint before the entry is
-updated and reloaded.
-
-## Entities
-
-Entities are created only when their required tool was returned by `tools/list`.
-Missing data remains unknown; it is never estimated or replaced with zero.
-
-| Entity suffix | Source | Unit |
+| Observe | Automate | Stay private |
 |---|---|---|
-| `weight` | `sparky_get_health_summary` / check-in diary | kg |
-| `steps_today` | `sparky_manage_checkin/list_checkin_diary` | steps |
-| `calories_today` | `sparky_get_nutrition_summary` daily total | kcal |
-| `protein_today` | `sparky_get_nutrition_summary` daily total | g |
-| `carbs_today` | `sparky_get_nutrition_summary` daily total | g |
-| `fat_today` | `sparky_get_nutrition_summary` daily total | g |
-| `fiber_today` | `sparky_get_nutrition_summary` daily total | g |
-| `sugar_today` | `sparky_get_nutrition_summary` daily total | g |
-| `sodium_today` | `sparky_get_nutrition_summary` daily total | mg |
-| `potassium_today` | `sparky_get_nutrition_summary` daily total | mg |
-| `water_today` | `sparky_get_health_summary` | ml |
-| `sleep_duration` | `sparky_manage_checkin/list_checkin_diary` | h |
-| `sleep_score` | `sparky_manage_checkin/list_checkin_diary` | score |
-| `mood` | `sparky_manage_checkin/list_checkin_diary` | 1–10 |
-| `body_fat` | `sparky_manage_checkin/list_checkin_diary` | % |
-| `exercise_count_today` | `sparky_get_health_summary` | count |
-| `logging_streak` | `sparky_get_logging_streak` | days |
-| `calorie_goal` | `sparky_get_goal_snapshot` | kcal |
-| `protein_goal` | `sparky_get_goal_snapshot` | g |
-| `carbs_goal` | `sparky_get_goal_snapshot` | g |
-| `fat_goal` | `sparky_get_goal_snapshot` | g |
-| `water_goal` | `sparky_get_goal_snapshot` | ml |
-| `food_days_logged_30d` | `sparky_get_30_day_trends` | days |
-| `avg_daily_calories_30d` | `sparky_get_30_day_trends` | kcal |
-| `avg_daily_protein_30d` | `sparky_get_30_day_trends` | g |
-| `workouts_30d` | `sparky_get_30_day_trends` | count |
-| `active_days_30d` | `sparky_get_30_day_trends` | days |
-| `exercise_calories_30d` | `sparky_get_30_day_trends` | kcal |
-| `avg_mood_30d` | `sparky_get_30_day_trends` | 1–10 |
-| `avg_sleep_duration_30d` | `sparky_get_30_day_trends` | h |
-| `avg_sleep_score_30d` | `sparky_get_30_day_trends` | score |
-| `weight_entries_30d` | `sparky_get_30_day_trends` | count |
-| `binary_sensor.sparkyfitness_fasting` | `sparky_manage_checkin/get_fasting_status` | on/off |
-| `fasting_elapsed` | locally calculated from the active MCP status | s |
-| `fasting_target_end` | locally calculated for protocols such as `16:8` | timestamp |
-| `fasting_remaining` | locally calculated for protocols such as `16:8` | s |
-| `fasting_progress` | locally calculated for protocols such as `16:8` | % |
-| `binary_sensor.sparkyfitness_fasting_goal_reached` | locally calculated for protocols such as `16:8` | on/off |
-| `binary_sensor.sparkyfitness_<habit>` | `sparky_manage_habits` | on/off |
-| `<habit>_completion_7d` | explicit tracked habit days | % |
-| `<habit>_completion_30d` | explicit tracked habit days | % |
-| `<habit>_streak` | consecutive completed calendar days | days |
-| `calendar.sparkyfitness_workouts` | bounded `sparky_get_exercise_diary` reads | events |
-| `binary_sensor.sparkyfitness_connection` | latest coordinator result | on/off |
-| `last_successful_refresh` | local coordinator metadata | timestamp |
-| `failed_polling_sections` | local technical metadata | count |
+| Nutrition, hydration, check-ins, goals, trends, fasting, habits, and workouts | Log weight, water, food, exercise, sleep, mood, habits, goals, and fasting from HA | Direct, asynchronous Streamable HTTP MCP using Home Assistant's shared HTTP session |
+| Native sensors, binary sensors, diagnostics, and a workout calendar | Safe update/delete actions use exact diary IDs and explicit confirmation | API keys never appear in logs, diagnostics, entities, or action responses |
+| Independent polling sections preserve healthy data during partial failures | Multiple API keys and SparkyFitness accounts are supported | No guessing, scraping, cloud relay, third-party analytics, or generic MCP escape hatch |
 
-Goal progress and remaining-amount sensors are also available for calories,
-protein, carbohydrates, fat, and water. They are disabled by default in the
-entity registry to avoid unnecessary entity clutter. Fiber, sugar, sodium, and
-potassium sensors are likewise available but disabled by default. Habit entities
-retain only today's compact state and stable habit ID. Habit analytics are also
-disabled by default; when enabled, they fetch at most a bounded 30-day history
-per hour and store only derived rates, counts, and streak metadata in entity
-state.
+## Quick start
 
-The workout calendar is read-only. Calendar range requests are translated to
-bounded exercise-diary reads, and the entity refreshes its next event every 15
-minutes. Workout summaries and notes displayed by the calendar can be recorded
-by Home Assistant like other calendar state.
+1. In SparkyFitness, create a personal API key under
+   **Settings → Developer & Integrations → API Key Management**.
+2. In HACS, add
+   `https://github.com/JensRudolph/sparkyfitness-custom-integration`
+   as a custom **Integration** repository and install **SparkyFitness**.
+3. Restart Home Assistant, then open
+   **Settings → Devices & services → Add integration → SparkyFitness**.
+4. Enter your SparkyFitness base URL or `/mcp` endpoint and the API key.
 
-All entities belong to one virtual **SparkyFitness** device per config entry. The
-MCP server version from the initialize response is shown as the software version
-when available.
+The setup flow initializes MCP, discovers the server's tools, validates the key,
+and creates only entities supported by that SparkyFitness installation.
 
-## Actions
+[Full installation guide](docs/installation.md) ·
+[Configuration guide](docs/configuration.md) ·
+[Troubleshooting](docs/troubleshooting.md)
 
-Every action uses a fixed, reviewed MCP mapping. There is deliberately no generic
-“call any MCP tool” action.
+## Feature highlights
 
-| Home Assistant action | MCP mapping |
-|---|---|
-| `sparkyfitness.refresh` | Coordinator refresh |
-| `sparkyfitness.log_weight` | `sparky_manage_checkin/log_biometrics` |
-| `sparkyfitness.log_biometrics` | `sparky_manage_checkin/log_biometrics` |
-| `sparkyfitness.log_water` | `sparky_manage_food/log_water` |
-| `sparkyfitness.log_mood` | `sparky_manage_checkin/log_mood` |
-| `sparkyfitness.log_sleep` | `sparky_manage_checkin/log_sleep` |
-| `sparkyfitness.log_custom_metric` | `sparky_manage_checkin/log_custom_metric` |
-| `sparkyfitness.log_food` | `sparky_manage_food/log_food` |
-| `sparkyfitness.update_food_entry` | `sparky_manage_food/update_entry` by entry ID |
-| `sparkyfitness.delete_food_entry` | `sparky_manage_food/delete_entry` by entry ID |
-| `sparkyfitness.log_exercise` | `sparky_manage_exercise/log_exercise` |
-| `sparkyfitness.update_exercise_entry` | `sparky_manage_exercise/update_exercise_entry` by entry ID |
-| `sparkyfitness.delete_exercise_entry` | `sparky_manage_exercise/delete_exercise_entry` by entry ID |
-| `sparkyfitness.create_exercise` | `sparky_manage_exercise/create_exercise` |
-| `sparkyfitness.create_workout_preset` | search, then `create_workout_preset` |
-| `sparkyfitness.log_workout_preset` | `sparky_manage_exercise/log_workout_preset` |
-| `sparkyfitness.set_goals` | `sparky_manage_goals/set_goals` |
-| `sparkyfitness.log_habit` | `sparky_manage_habits/log_habit` |
-| `sparkyfitness.start_fasting` | `sparky_manage_checkin/log_fasting` with `ACTIVE` status |
-| `sparkyfitness.log_fasting_window` | `sparky_manage_checkin/log_fasting` with start/end |
-| `sparkyfitness.list_food_diary` | `sparky_get_food_diary` |
-| `sparkyfitness.search_food` | `sparky_search_foods` |
-| `sparkyfitness.list_exercise_diary` | `sparky_get_exercise_diary` |
-| `sparkyfitness.search_exercise` | `sparky_search_exercises` |
-| `sparkyfitness.list_workout_presets` | `sparky_manage_exercise/get_workout_presets` |
-| `sparkyfitness.list_habits` | `sparky_manage_habits/list_habits` |
-| `sparkyfitness.get_habit_history` | `sparky_manage_habits/get_habit_history` |
+- UI-only setup, options, reconfiguration, and API-key reauthentication.
+- Runtime MCP tool discovery instead of assuming every server has every feature.
+- Five-minute coordinated polling by default, configurable from 1–60 minutes.
+- Demand-aware polling skips sections that have no enabled consuming entity.
+- Partial failures remain isolated and recover automatically.
+- Native read-only workout calendar using bounded exercise-diary requests.
+- Dynamic habit completion and streak entities with bounded, cached history reads.
+- Current goals and structured 30-day health and fitness trends.
+- Exact, reviewed Home Assistant actions — never a generic “call any tool” action.
+- Multiple accounts or users, including multiple API keys for the same server.
+- Optional technical diagnostics without personal health values.
+- English and German UI and entity translations.
 
-After every successful write, the coordinator requests an immediate refresh.
-When an action omits its date, the integration sends the `today` keyword so each
-SparkyFitness account resolves the date in that user's configured time zone.
-All action fields and selectors are documented in the Home Assistant action UI.
+## A small automation example
 
-Update and delete actions deliberately require an exact diary-entry UUID. Delete
-actions additionally require `confirm: true`; names are never resolved or guessed
-for destructive operations. IDs are shown by the corresponding SparkyFitness food
-or exercise diary MCP output. The read-only list/search actions above make these
-IDs available directly in Home Assistant action responses. Those responses are
-not copied into entity attributes or the coordinator.
-
-Each API key is configured as a separate entry. If multiple SparkyFitness config
-entries are loaded, add the optional
-`config_entry_id` field. With exactly one loaded entry, it is selected
-automatically.
-
-## Automation examples
-
-### Send smart-scale weight to SparkyFitness
+Forward a valid smart-scale value directly to SparkyFitness:
 
 ```yaml
 automation:
@@ -272,12 +89,10 @@ automation:
     triggers:
       - trigger: state
         entity_id: sensor.smart_scale_weight
-
     conditions:
       - condition: template
         value_template: >
           {{ trigger.to_state.state not in ['unknown', 'unavailable'] }}
-
     actions:
       - action: sparkyfitness.log_weight
         data:
@@ -285,270 +100,71 @@ automation:
           unit: kg
 ```
 
-### Log water
+More examples are available in the [automation cookbook](docs/automations.md).
 
-```yaml
-action: sparkyfitness.log_water
-data:
-  amount: 500
-  unit: ml
-```
+## Documentation
 
-### Log mood
+| Guide | Contents |
+|---|---|
+| [Documentation index](docs/README.md) | Start here for the complete documentation |
+| [Installation](docs/installation.md) | Requirements, API keys, HACS, manual installation, and upgrades |
+| [Configuration](docs/configuration.md) | Setup, feature options, multiple accounts, TLS, and reauthentication |
+| [Entities](docs/entities.md) | Sensors, binary sensors, diagnostics, units, and availability |
+| [Actions](docs/actions.md) | Every Home Assistant action and its reviewed MCP mapping |
+| [Automation cookbook](docs/automations.md) | Ready-to-adapt YAML examples |
+| [Workout calendar](docs/workout-calendar.md) | Calendar ranges, time zones, refreshes, and privacy |
+| [Habits](docs/habits.md) | Daily state, 7/30-day completion, streaks, and caching |
+| [Security and privacy](docs/security-and-privacy.md) | Data flow, diagnostics, secrets, and threat boundaries |
+| [Troubleshooting](docs/troubleshooting.md) | Connection, TLS, authentication, missing entities, and repairs |
+| [Compatibility](docs/compatibility.md) | Verified MCP behavior and known upstream limitations |
+| [Architecture](docs/architecture.md) | Coordinator, capability discovery, polling, and error isolation |
+| [Development](docs/development.md) | Local setup, testing, validation, and releases |
+| [Changelog](CHANGELOG.md) | User-visible changes by release |
 
-```yaml
-action: sparkyfitness.log_mood
-data:
-  mood: 8
-  notes: "Very good day"
-```
+## Requirements
 
-### Log a custom metric
+- Home Assistant 2026.8.0 or newer.
+- A current SparkyFitness release with its Streamable HTTP MCP endpoint.
+- A personal SparkyFitness API key.
+- Network access from Home Assistant to the SparkyFitness host.
 
-The category must already exist in SparkyFitness.
+See [MCP compatibility](docs/compatibility.md) for the verified upstream baseline
+and deliberate limitations.
 
-```yaml
-action: sparkyfitness.log_custom_metric
-data:
-  name: "Resting Heart Rate"
-  value: 58
-  unit: bpm
-```
+## Installation through HACS
 
-### Log exercise sets
+Until this repository is included in the HACS default catalog:
 
-Set field names and allowed `set_type` values match the current MCP schema.
-Weights are kilograms, set duration/rest values are seconds, and distance is km.
+1. Open HACS and choose **Custom repositories** from the three-dot menu.
+2. Add this repository URL and select the **Integration** category.
+3. Install **SparkyFitness** and restart Home Assistant.
 
-```yaml
-action: sparkyfitness.log_exercise
-data:
-  exercise: "Bench Press"
-  notes: "Good session"
-  sets:
-    - reps: 10
-      weight: 80
-      set_type: "Working Set"
-      rpe: 8
-    - reps: 9
-      weight: 80
-      set_type: "Working Set"
-      rpe: 9
-    - reps: 8
-      weight: 80
-      set_type: "Working Set"
-      rpe: 9
-```
+Manual installation and update instructions are in the
+[installation guide](docs/installation.md).
 
-### Create a workout preset safely
-
-```yaml
-action: sparkyfitness.create_workout_preset
-data:
-  name: "Push A"
-  exercises:
-    - "Bench Press"
-    - "Incline Dumbbell Bench Press"
-    - "Lateral Raise"
-    - "Triceps Pushdown"
-```
-
-Every name must resolve to exactly one case-insensitive exact search result. If a
-name is missing or ambiguous, nothing is created.
-
-### Correct or delete an exact diary entry
-
-```yaml
-action: sparkyfitness.update_food_entry
-data:
-  entry_id: "11111111-1111-1111-1111-111111111111"
-  quantity: 1.5
-  meal_type: dinner
-```
-
-Permanent deletion requires an explicit confirmation:
-
-```yaml
-action: sparkyfitness.delete_exercise_entry
-data:
-  entry_id: "22222222-2222-2222-2222-222222222222"
-  confirm: true
-```
-
-### Start or record fasting
-
-Start a new active fast at the current Home Assistant time:
-
-```yaml
-action: sparkyfitness.start_fasting
-data:
-  fasting_type: "16:8"
-```
-
-`sparkyfitness.log_fasting_window` records a new completed or cancelled interval
-with explicit start and end timestamps. It does not end or alter an already active
-fast; the current MCP has no mutation action for that operation.
-
-## Data updates and availability
-
-The coordinator uses the dedicated nutrition-summary tool for true daily food and
-supplement totals. The health summary supplies hydration, weight, and exercise
-totals. Check-in, fasting, and streak sections are fetched only when their tools
-and feature groups are active and at least one corresponding entity is enabled.
-Goals are refreshed at most every 30 minutes and 30-day aggregates at most
-hourly, unless a relevant write or manual refresh invalidates that cache. Newly
-created entries receive their initial data before entity-demand filtering begins.
-
-When habit sensors are enabled, the coordinator caches the habit catalog for one
-hour and reads today's state for each habit with at most four concurrent MCP
-calls. A partial history failure preserves the last state while marking only the
-affected habit unavailable. Renames and authoritative deletions are reflected in
-the entity registry. Enabled analytics share the same four-call concurrency limit,
-refresh at most hourly, and become unavailable independently of today's binary
-state. Disable habit sensors if this additional polling is not wanted.
-
-Optional section errors are isolated. A total communication failure marks
-coordinator entities unavailable while retaining their last state. The next
-successful poll recovers automatically. A rejected/revoked API key starts Home
-Assistant's reauthentication flow.
-
-## Diagnostics and security
-
-Diagnostics contain only technical metadata:
-
-- Hostname and MCP endpoint.
-- Integration and advertised SparkyFitness version.
-- Negotiated MCP protocol version.
-- Discovered tool names.
-- Enabled feature groups and update interval.
-- Last successful refresh time, failed polling sections, and last technical
-  exception class.
-
-Diagnostics never contain the API key, authorization header, entity values,
-food diary, exercise diary, or other health records. The API key is never logged
-or exposed as an entity attribute. There is no telemetry or analytics.
-
-Communication is exclusively:
+## Security at a glance
 
 ```text
-Home Assistant ↔ configured SparkyFitness MCP endpoint
+Home Assistant
+      │
+      │  Streamable HTTP MCP + Bearer API key
+      ▼
+Configured SparkyFitness /mcp endpoint
 ```
 
-## Troubleshooting
+The integration never stores diary/history payloads in entity attributes.
+Calendar reads are bounded to the requested range, and habit analytics retain
+only compact derived values. See [Security and privacy](docs/security-and-privacy.md).
 
-### Cannot connect
+## Support and releases
 
-- Confirm Home Assistant can resolve and reach the SparkyFitness hostname.
-- Confirm the endpoint is `/mcp`; a base URL is normalized automatically.
-- Check reverse-proxy routing for `POST /mcp`.
-- Confirm the server is a current release with the in-process MCP endpoint.
+- [Latest release](https://github.com/JensRudolph/sparkyfitness-custom-integration/releases/latest)
+- [Changelog](CHANGELOG.md)
+- [Open an issue](https://github.com/JensRudolph/sparkyfitness-custom-integration/issues)
+- [Validation workflows](https://github.com/JensRudolph/sparkyfitness-custom-integration/actions)
 
-### Invalid authentication
-
-Create a new personal API key in SparkyFitness and complete the reauthentication
-flow in Home Assistant. Do not delete the integration.
-
-Home Assistant also creates repair issues for rejected authentication,
-unverified MCP protocol versions, and tools missing from enabled feature groups.
-The missing-tool repair can disable only the affected local feature switches and
-reload the entry after confirmation; it never changes SparkyFitness or the MCP.
-
-### TLS error
-
-Install a certificate trusted by the Home Assistant host. Disabling verification
-is available only as an explicit unsafe option.
-
-### An entity is missing
-
-Check diagnostics for the corresponding tool. Optional entities are not created
-when `tools/list` does not advertise the required capability, or when their
-feature group is disabled.
-
-### An action reports “unsupported feature”
-
-The configured SparkyFitness release did not advertise the required MCP tool.
-Upgrade SparkyFitness; the integration does not fall back to private APIs.
-
-## Known limitations
-
-- The current MCP returns health-summary and reporting data as JSON, but the
-  daily check-in detail as a documented Markdown projection. Steps, sleep, mood,
-  and body-fat parsing follows the current upstream implementation and live MCP
-  output. If that projection changes incompatibly, those values become unknown;
-  the integration does not guess.
-- `log_food` logs foods already stored in the authenticated user's SparkyFitness
-  database. External provider lookup requires a deterministic user selection, so
-  this integration does not silently choose or create an external food.
-- `log_custom_metric` requires an existing custom measurement category.
-- Although the current check-in schema accepts a `sleep_score` write field, the
-  upstream implementation does not store that supplied value. The Home Assistant
-  action therefore does not expose a misleading sleep-score input.
-- The current MCP has `set_goals`; it does not expose distinct create/update goal
-  records. The integration implements the real action as `set_goals` instead of
-  inventing `create_goal` or `update_goal`.
-- Although the current goals schema accepts a `weight` write field, the upstream
-  MCP implementation does not persist it. The Home Assistant action therefore
-  does not expose a misleading target-weight input.
-- The current `log_fasting` MCP action always creates a fasting record. It can
-  start a new active fast or record a completed window, but it cannot update/end
-  the already active record. No misleading `end_fasting` action is exposed.
-- No current MCP read tool returns today's biometrics, mood, and sleep together as
-  structured JSON. Priority check-in sensors therefore still use the upstream
-  Markdown projection; the isolated parser can be replaced when such a tool is
-  added upstream.
-- Exercise diary timestamps carrying an explicit offset retain it. Date-only or
-  naive workout times are interpreted in Home Assistant's configured time zone,
-  because the existing diary response does not provide a separate user-zone field.
-- Medication, coaching, image-analysis, and profile mutation are intentionally
-  not entities. Full food/exercise/habit history payloads are not stored as entity
-  attributes; calendar reads are bounded and habit entities retain only compact
-  7-/30-day derivatives.
-
-## MCP compatibility verification
-
-Development was checked on 2026-08-26 against:
-
-- The `CodeWithCJ/SparkyFitness` main branch at `fe2f466` (server package 1.6.3).
-- Its stateless `POST /mcp` implementation using
-  `StreamableHTTPServerTransport`, JSON responses, bearer authentication, and
-  no generated session ID.
-- A live authenticated SparkyFitness MCP exposing 36 normal-user tools.
-- Read-only live calls for health summary, nutrition summary, daily report,
-  exercise totals, check-in diary, fasting status, logging streak, goal snapshot,
-  30-day trends, trend analysis, and profile preferences. Only shapes/types were
-  retained during verification.
-
-The official Python MCP SDK was also evaluated. Its current v2 client uses its
-own `httpx2` transport and a broad dependency graph. SparkyFitness's current
-stateless JSON transport needs only the standard MCP methods used here, while
-Home Assistant requires shared HTTP-session injection. The integration therefore
-implements this small MCP subset directly on Home Assistant's `aiohttp` session;
-it is still MCP JSON-RPC, not a SparkyFitness REST workaround.
-
-## Development
-
-```bash
-uv sync --extra test
-uv run ruff check custom_components tests
-uv run ruff format --check custom_components tests
-uv run pytest
-```
-
-Home Assistant's official test harness targets Linux. On native Windows, the
-platform-independent subset can run locally; GitHub Actions runs the complete
-mocked suite automatically.
-
-GitHub Actions runs Ruff, a coverage-gated complete mocked test suite, HACS
-validation, and hassfest validation. A semantic version tag such as `v0.4.0`
-creates a release only after all four checks pass and the tag matches the manifest
-version.
-
-The tests use mocks only and require no real SparkyFitness URL or API key. They
-cover config and reconfigure flow errors, MCP discovery/calls/SSE/errors/timeouts,
-coordinator partial/total failure, entity-demand polling, time-zone defaults,
-habit analytics caching and recovery, workout calendar ranges, privacy
-diagnostics, repair flows, output parsing, release metadata, and the key
-write/update/delete actions.
+Release tags are published only after the complete mocked test suite, coverage
+gate, Ruff, HACS validation, and Home Assistant hassfest validation pass.
 
 ## License
 

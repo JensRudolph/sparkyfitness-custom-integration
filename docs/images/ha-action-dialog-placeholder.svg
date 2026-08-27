@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Home Assistant action dialog screenshot placeholder</title>
+  <desc id="desc">A stylized action form marked screenshot coming soon.</desc>
+  <rect width="960" height="540" rx="24" fill="#0f172a"/>
+  <rect x="18" y="18" width="924" height="504" rx="18" fill="#111827" stroke="#334155" stroke-width="2"/>
+  <rect x="18" y="18" width="924" height="58" rx="18" fill="#1e293b"/>
+  <circle cx="52" cy="47" r="12" fill="#18bcf2"/>
+  <text x="78" y="55" fill="#f8fafc" font-family="Arial, sans-serif" font-size="22" font-weight="700">Home Assistant action</text>
+  <rect x="178" y="98" width="604" height="388" rx="18" fill="#172033" stroke="#334155" stroke-width="2"/>
+  <text x="216" y="143" fill="#f8fafc" font-family="Arial, sans-serif" font-size="24" font-weight="700">Log water in SparkyFitness</text>
+  <text x="216" y="177" fill="#94a3b8" font-family="Arial, sans-serif" font-size="14">Typed fields with native Home Assistant selectors</text>
+  <text x="216" y="220" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="14">Account</text>
+  <rect x="216" y="232" width="528" height="48" rx="10" fill="#111827" stroke="#475569"/>
+  <rect x="234" y="249" width="182" height="13" rx="6" fill="#475569"/>
+  <text x="216" y="316" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="14">Amount</text>
+  <rect x="216" y="328" width="342" height="48" rx="10" fill="#111827" stroke="#475569"/>
+  <rect x="234" y="345" width="92" height="13" rx="6" fill="#475569"/>
+  <text x="579" y="316" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="14">Unit</text>
+  <rect x="579" y="328" width="165" height="48" rx="10" fill="#111827" stroke="#475569"/>
+  <rect x="597" y="345" width="64" height="13" rx="6" fill="#475569"/>
+  <rect x="546" y="409" width="198" height="46" rx="23" fill="#18bcf2"/>
+  <text x="645" y="438" text-anchor="middle" fill="#082f49" font-family="Arial, sans-serif" font-size="16" font-weight="700">Run action</text>
+  <rect x="246" y="493" width="468" height="38" rx="19" fill="#ef3340"/>
+  <text x="480" y="518" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="17" font-weight="700">SCREENSHOT COMING SOON</text>
+</svg>

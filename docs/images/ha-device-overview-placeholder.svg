@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Home Assistant device overview screenshot placeholder</title>
+  <desc id="desc">A stylized empty Home Assistant device page marked screenshot coming soon.</desc>
+  <rect width="960" height="540" rx="24" fill="#0f172a"/>
+  <rect x="18" y="18" width="924" height="504" rx="18" fill="#111827" stroke="#334155" stroke-width="2"/>
+  <rect x="18" y="18" width="924" height="58" rx="18" fill="#1e293b"/>
+  <circle cx="52" cy="47" r="12" fill="#18bcf2"/>
+  <text x="78" y="55" fill="#f8fafc" font-family="Arial, sans-serif" font-size="22" font-weight="700">Home Assistant</text>
+  <rect x="38" y="98" width="210" height="402" rx="14" fill="#172033"/>
+  <rect x="62" y="128" width="122" height="14" rx="7" fill="#475569"/>
+  <rect x="62" y="171" width="158" height="12" rx="6" fill="#334155"/>
+  <rect x="62" y="207" width="136" height="12" rx="6" fill="#334155"/>
+  <rect x="62" y="243" width="148" height="12" rx="6" fill="#334155"/>
+  <circle cx="316" cy="138" r="34" fill="#ef3340"/>
+  <text x="372" y="134" fill="#f8fafc" font-family="Arial, sans-serif" font-size="27" font-weight="700">SparkyFitness</text>
+  <text x="372" y="160" fill="#94a3b8" font-family="Arial, sans-serif" font-size="16">Device and entity overview</text>
+  <g fill="#172033" stroke="#334155">
+    <rect x="282" y="206" width="196" height="108" rx="14"/>
+    <rect x="498" y="206" width="196" height="108" rx="14"/>
+    <rect x="714" y="206" width="196" height="108" rx="14"/>
+    <rect x="282" y="334" width="196" height="108" rx="14"/>
+    <rect x="498" y="334" width="196" height="108" rx="14"/>
+    <rect x="714" y="334" width="196" height="108" rx="14"/>
+  </g>
+  <g fill="#64748b">
+    <rect x="304" y="231" width="104" height="12" rx="6"/>
+    <rect x="520" y="231" width="118" height="12" rx="6"/>
+    <rect x="736" y="231" width="90" height="12" rx="6"/>
+    <rect x="304" y="359" width="126" height="12" rx="6"/>
+    <rect x="520" y="359" width="98" height="12" rx="6"/>
+    <rect x="736" y="359" width="114" height="12" rx="6"/>
+  </g>
+  <rect x="298" y="466" width="596" height="38" rx="19" fill="#ef3340" opacity=".95"/>
+  <text x="596" y="491" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="17" font-weight="700">SCREENSHOT COMING SOON</text>
+</svg>
