@@ -5,7 +5,7 @@ All notable user-visible changes to this integration are documented here.
 The project follows semantic versioning. GitHub releases are created only after
 the release tag passes tests, coverage, Ruff, HACS validation, and hassfest.
 
-## [Unreleased]
+## [0.4.1] - 2026-08-27
 
 ### Fixed
 
@@ -56,6 +56,7 @@ the release tag passes tests, coverage, Ruff, HACS validation, and hassfest.
 - Read-only diary, search, workout-preset, and habit-history actions.
 - HACS and hassfest release validation.
 
+[0.4.1]: https://github.com/JensRudolph/sparkyfitness-custom-integration/releases/tag/v0.4.1
 [0.4.0]: https://github.com/JensRudolph/sparkyfitness-custom-integration/releases/tag/v0.4.0
 [0.3.1]: https://github.com/JensRudolph/sparkyfitness-custom-integration/releases/tag/v0.3.1
 [0.3.0]: https://github.com/JensRudolph/sparkyfitness-custom-integration/releases/tag/v0.3.0
