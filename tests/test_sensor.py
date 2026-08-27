@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from homeassistant.components.sensor import SensorStateClass
+
 from custom_components.sparkyfitness.const import (
     CONF_ENABLE_GOALS,
     CONF_ENABLE_TRENDS,
@@ -52,6 +54,21 @@ def test_goal_and_trend_sensors_are_capability_gated() -> None:
     ):
         assert descriptions[key].required_tools == frozenset({TOOL_30_DAY_TRENDS})
         assert descriptions[key].feature_option == CONF_ENABLE_TRENDS
+
+
+def test_calorie_measurements_do_not_claim_an_energy_device_class() -> None:
+    """Targets, averages, and remainders avoid HA's invalid energy metadata pair."""
+
+    descriptions = {description.key: description for description in SENSORS}
+    for key in (
+        "calorie_goal",
+        "calories_remaining",
+        "avg_daily_calories_30d",
+        "exercise_calories_30d",
+    ):
+        description = descriptions[key]
+        assert description.device_class is None
+        assert description.state_class is SensorStateClass.MEASUREMENT
 
 
 def test_goal_progress_sensors_require_both_source_tools() -> None:

@@ -159,6 +159,11 @@ class SparkyFitnessCoordinator(DataUpdateCoordinator[SparkyFitnessData]):
             return
         self._habit_analytics_updated_at.pop(habit_id, None)
 
+    def invalidate_habit_catalog(self) -> None:
+        """Force the habit catalog to refresh without discarding cached state."""
+
+        self._habit_catalog_updated_at = None
+
     def invalidate_sections(self, *sections: str) -> None:
         """Force slow-changing sections to refresh on the next update."""
 

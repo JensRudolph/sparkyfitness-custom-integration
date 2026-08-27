@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime
 from typing import Any
 
@@ -50,7 +51,7 @@ from .exceptions import (
     SparkyFitnessError,
     SparkyFitnessUnsupportedFeatureError,
 )
-from .extract import extract_json
+from .extract import extract_json, parse_fasting_status
 from .repairs import async_update_connection_issues
 
 ENTRY_FIELD = {vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string}
@@ -74,6 +75,28 @@ def _non_empty_string(value: Any) -> str:
 
 
 NON_EMPTY_STRING = vol.All(_non_empty_string, vol.Length(max=200))
+
+
+def _preset_id(value: Any) -> int | str:
+    """Validate an opaque positive numeric or non-empty text preset ID."""
+
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise vol.Invalid("preset ID must be a positive integer or text")
+    if isinstance(value, int):
+        if value <= 0:
+            raise vol.Invalid("numeric preset ID must be positive")
+        return value
+    text = NON_EMPTY_STRING(value)
+    try:
+        numeric_id = int(text)
+    except ValueError:
+        return text
+    if numeric_id <= 0:
+        raise vol.Invalid("numeric preset ID must be positive")
+    return numeric_id
+
+
+PRESET_ID_VALUE = _preset_id
 DATE_RANGE_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
@@ -285,7 +308,7 @@ LOG_WORKOUT_PRESET_SCHEMA = vol.Schema(
     {
         **ENTRY_FIELD,
         **DATE_FIELD,
-        vol.Exclusive("preset_id", "preset"): UUID_VALUE,
+        vol.Exclusive("preset_id", "preset"): PRESET_ID_VALUE,
         vol.Exclusive("preset_name", "preset"): NON_EMPTY_STRING,
     }
 )
@@ -334,6 +357,8 @@ def async_register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_REFRESH):
         return
 
+    fasting_start_locks: dict[str, asyncio.Lock] = {}
+
     async def handle(call: ServiceCall) -> dict[str, Any]:
         entry = _resolve_entry(hass, call.data.get(CONF_CONFIG_ENTRY_ID))
         runtime = entry.runtime_data
@@ -351,6 +376,7 @@ def async_register_services(hass: HomeAssistant) -> None:
                     hass.config_entries.async_schedule_reload(entry.entry_id)
                     return {"result": "reloading"}
                 runtime.coordinator.invalidate_sections("goals", "trends")
+                runtime.coordinator.invalidate_habit_catalog()
                 await runtime.coordinator.async_request_refresh()
                 return {"result": "refreshed"}
 
@@ -523,11 +549,18 @@ def async_register_services(hass: HomeAssistant) -> None:
                     data["habit_id"], entry_date, data["completed"]
                 )
             elif service == SERVICE_START_FASTING:
-                result = await client.async_log_fasting(
-                    _timestamp_string(data.get("start_time")),
-                    fasting_status="ACTIVE",
-                    fasting_type=data.get("fasting_type"),
-                )
+                lock = fasting_start_locks.setdefault(entry.entry_id, asyncio.Lock())
+                async with lock:
+                    active_fast = parse_fasting_status(
+                        str(await client.async_get_fasting_status())
+                    )
+                    if active_fast is not None:
+                        raise _validation_error("fasting_already_active")
+                    result = await client.async_log_fasting(
+                        _timestamp_string(data.get("start_time")),
+                        fasting_status="ACTIVE",
+                        fasting_type=data.get("fasting_type"),
+                    )
             elif service == SERVICE_LOG_FASTING_WINDOW:
                 start_time = data["start_time"]
                 end_time = data["end_time"]

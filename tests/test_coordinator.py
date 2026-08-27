@@ -295,6 +295,35 @@ async def test_authoritative_habit_catalog_refresh_tracks_rename_and_removal(
     assert removed.habits == {}
 
 
+async def test_habit_catalog_can_be_invalidated_for_manual_refresh(hass) -> None:
+    """Manual invalidation discovers external habit changes before the hourly TTL."""
+
+    habit_id = "11111111-1111-1111-1111-111111111111"
+    client = _client()
+    client.tools[TOOL_HABITS] = object()
+    client.async_list_habits = AsyncMock(
+        side_effect=[
+            "# Available Habits\n\nNo results found.",
+            f"# Available Habits\n\n**Walk**\n  ID: {habit_id}",
+        ]
+    )
+    client.async_get_habit_history = AsyncMock(
+        return_value="# Habit History\n\nNo results found."
+    )
+    coordinator = SparkyFitnessCoordinator(hass, _entry(hass), client)
+    coordinator.data = await coordinator._async_update_data()
+
+    cached = await coordinator._async_update_data()
+    assert cached.habits == {}
+    client.async_list_habits.assert_awaited_once()
+
+    coordinator.invalidate_habit_catalog()
+    refreshed = await coordinator._async_update_data()
+
+    assert refreshed.habits[habit_id]["name"] == "Walk"
+    assert client.async_list_habits.await_count == 2
+
+
 async def test_disabled_entities_do_not_trigger_their_polling_sections(hass) -> None:
     """The entity registry controls MCP demand after platform setup."""
 

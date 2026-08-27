@@ -34,6 +34,7 @@ from custom_components.sparkyfitness.const import (
     SERVICE_LOG_MOOD,
     SERVICE_LOG_WATER,
     SERVICE_LOG_WEIGHT,
+    SERVICE_LOG_WORKOUT_PRESET,
     SERVICE_REFRESH,
     SERVICE_SEARCH_EXERCISE,
     SERVICE_SEARCH_FOOD,
@@ -44,6 +45,7 @@ from custom_components.sparkyfitness.const import (
 from custom_components.sparkyfitness.services import (
     CREATE_WORKOUT_PRESET_SCHEMA,
     LOG_HABIT_SCHEMA,
+    LOG_WORKOUT_PRESET_SCHEMA,
     _date_string,
     _resolve_entry,
 )
@@ -65,11 +67,15 @@ async def service_runtime(hass):
     client.async_log_mood = AsyncMock(return_value="mood logged")
     client.async_log_custom_metric = AsyncMock(return_value="metric logged")
     client.async_log_exercise = AsyncMock(return_value="exercise logged")
+    client.async_log_workout_preset = AsyncMock(return_value="preset logged")
     client.async_update_food_entry = AsyncMock(return_value="food updated")
     client.async_delete_food_entry = AsyncMock(return_value="food deleted")
     client.async_update_exercise_entry = AsyncMock(return_value="exercise updated")
     client.async_delete_exercise_entry = AsyncMock(return_value="exercise deleted")
     client.async_log_fasting = AsyncMock(return_value="fasting logged")
+    client.async_get_fasting_status = AsyncMock(
+        return_value="No active fasting session."
+    )
     client.async_list_food_diary = AsyncMock(
         return_value='{"entries":[{"id":"food-entry"}]}'
     )
@@ -87,6 +93,7 @@ async def service_runtime(hass):
     )
     coordinator = MagicMock()
     coordinator.async_request_refresh = AsyncMock()
+    coordinator.invalidate_habit_catalog = MagicMock()
     coordinator.invalidate_sections = MagicMock()
     entry = MagicMock()
     entry.entry_id = ENTRY_ID
@@ -345,7 +352,7 @@ async def test_update_and_delete_exercise_entry_by_id(hass, service_runtime) -> 
 
 
 async def test_start_and_log_completed_fasting_window(hass, service_runtime) -> None:
-    """Fasting actions map only to the current MCP log_fasting operation."""
+    """Fasting actions guard active starts and map to the current MCP operation."""
 
     client, coordinator = service_runtime
     await _call(
@@ -361,6 +368,7 @@ async def test_start_and_log_completed_fasting_window(hass, service_runtime) -> 
         fasting_status="ACTIVE",
         fasting_type="16:8",
     )
+    client.async_get_fasting_status.assert_awaited_once_with()
 
     await _call(
         hass,
@@ -380,12 +388,49 @@ async def test_start_and_log_completed_fasting_window(hass, service_runtime) -> 
     assert coordinator.async_request_refresh.await_count == 2
 
 
+async def test_start_fasting_rejects_an_existing_active_session(
+    hass, service_runtime
+) -> None:
+    """A fresh status check prevents a second active fasting record."""
+
+    client, coordinator = service_runtime
+    client.async_get_fasting_status.return_value = (
+        '{"start_time":"2026-08-26T18:00:00+00:00",'
+        '"fasting_status":"ACTIVE","fasting_type":"16:8"}'
+    )
+
+    with pytest.raises(ServiceValidationError) as err:
+        await _call(hass, SERVICE_START_FASTING, {"fasting_type": "16:8"})
+
+    assert err.value.translation_key == "fasting_already_active"
+    client.async_log_fasting.assert_not_awaited()
+    coordinator.async_request_refresh.assert_not_awaited()
+
+
+async def test_numeric_workout_preset_id_is_forwarded(hass, service_runtime) -> None:
+    """Opaque numeric IDs returned by SparkyFitness remain usable by the action."""
+
+    client, coordinator = service_runtime
+    response = await _call(
+        hass,
+        SERVICE_LOG_WORKOUT_PRESET,
+        {"preset_id": 1, "entry_date": "2026-08-26"},
+    )
+
+    client.async_log_workout_preset.assert_awaited_once_with(
+        entry_date="2026-08-26", preset_id=1
+    )
+    coordinator.async_request_refresh.assert_awaited_once()
+    assert response == {"result": "preset logged"}
+
+
 async def test_manual_refresh_rediscovers_tools(hass, service_runtime) -> None:
     """A manual refresh also checks for an upgraded MCP tool surface."""
 
     client, coordinator = service_runtime
     response = await _call(hass, SERVICE_REFRESH, {})
     client.async_list_tools.assert_awaited_once()
+    coordinator.invalidate_habit_catalog.assert_called_once_with()
     coordinator.async_request_refresh.assert_awaited_once()
     assert response == {"result": "refreshed"}
 
@@ -397,6 +442,10 @@ def test_uuid_and_non_empty_action_validation() -> None:
         LOG_HABIT_SCHEMA({"habit_id": "not-a-uuid", "completed": True})
     with pytest.raises(vol.Invalid):
         CREATE_WORKOUT_PRESET_SCHEMA({"name": " ", "exercises": []})
+    with pytest.raises(vol.Invalid):
+        LOG_WORKOUT_PRESET_SCHEMA({"preset_id": 0})
+    assert LOG_WORKOUT_PRESET_SCHEMA({"preset_id": 1})["preset_id"] == 1
+    assert LOG_WORKOUT_PRESET_SCHEMA({"preset_id": ENTRY_ID})["preset_id"] == ENTRY_ID
 
 
 def test_multiple_entries_require_an_explicit_target(hass) -> None:

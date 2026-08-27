@@ -367,7 +367,7 @@ log_workout_preset:
     config_entry_id: *config_entry
     preset_id:
       name: Preset ID
-      description: UUID returned by list_workout_presets.
+      description: Opaque numeric or text ID returned by list_workout_presets.
       selector: {text: {}}
     preset_name:
       name: Preset name
@@ -415,7 +415,7 @@ log_habit:
 
 start_fasting:
   name: Start fasting
-  description: Create a new active fasting session through MCP. Defaults to the current Home Assistant time.
+  description: Create a new active fasting session through MCP when no fast is already active. Defaults to the current Home Assistant time.
   fields:
     config_entry_id: *config_entry
     start_time:

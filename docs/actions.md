@@ -110,10 +110,17 @@ goal records. The integration exposes only that real capability.
 `log_habit` targets one exact habit UUID and refreshes both today's state and any
 enabled cached analytics for that habit.
 
+The `refresh` action invalidates the hourly habit catalog cache. Habits created
+outside Home Assistant are therefore discovered immediately on the next manual
+refresh and their dynamic entities are added without reloading the integration.
+
 ## Fasting
 
-`start_fasting` creates a new active fasting record. `log_fasting_window` records
-a new completed or cancelled interval with explicit start and end timestamps.
+`start_fasting` first fetches the current fasting status and creates a new active
+record only when none exists. Starts are serialized per config entry so two
+concurrent Home Assistant calls cannot create overlapping active records.
+`log_fasting_window` records a new completed or cancelled interval with explicit
+start and end timestamps.
 
 The current MCP does not expose an operation that ends or modifies the already
 active record, so the integration does not provide a misleading `end_fasting`

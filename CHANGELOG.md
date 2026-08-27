@@ -5,6 +5,17 @@ All notable user-visible changes to this integration are documented here.
 The project follows semantic versioning. GitHub releases are created only after
 the release tag passes tests, coverage, Ruff, HACS validation, and hassfest.
 
+## [Unreleased]
+
+### Fixed
+
+- Removed invalid Home Assistant energy device classes from calorie targets,
+  remainders, and aggregate measurements.
+- Accepted the numeric or textual workout-preset IDs returned by SparkyFitness.
+- Made manual refresh invalidate the habit catalog so external habit changes
+  create or remove dynamic entities immediately.
+- Prevented Home Assistant actions from creating a second active fasting record.
+
 ## [0.4.0] - 2026-08-26
 
 ### Added

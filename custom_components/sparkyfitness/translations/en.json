@@ -113,6 +113,7 @@
     "exercise_update_required": {"message": "At least one exercise entry field is required."},
     "preset_required": {"message": "Provide preset_id or preset_name."},
     "goal_required": {"message": "At least one goal value is required."},
+    "fasting_already_active": {"message": "A fasting session is already active. End it in SparkyFitness before starting another one."},
     "end_time_after_start": {"message": "end_time must be after start_time."},
     "unknown_action": {"message": "Unknown SparkyFitness action: {action}"}
   },

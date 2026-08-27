@@ -11,6 +11,9 @@ The coordinator requests the authenticated user's boolean habit catalog and
 caches it for one hour. A stable habit UUID is used for entity unique IDs, so a
 rename updates the translated entity name without creating a duplicate.
 
+`sparkyfitness.refresh` invalidates this catalog cache so externally created,
+renamed, or removed habits can be synchronized immediately.
+
 When an authoritative catalog refresh removes a habit, its dynamic Home
 Assistant entities and entity-registry entries are removed.
 

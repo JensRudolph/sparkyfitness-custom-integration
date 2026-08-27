@@ -71,9 +71,10 @@ misleading target-weight field.
 
 ### Ending an active fast
 
-The current `log_fasting` action always creates a fasting record. It can create a
-new active fast or record a completed/cancelled window, but it cannot update/end
-the already active record. No `end_fasting` action is exposed.
+The upstream `log_fasting` action always creates a fasting record and cannot
+update/end an existing one. The integration therefore rejects `start_fasting`
+while a fast is already active, but it can still record separate completed or
+cancelled windows. No misleading `end_fasting` action is exposed.
 
 ### Workout time zones
 

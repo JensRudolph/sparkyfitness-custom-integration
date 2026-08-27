@@ -64,7 +64,7 @@ value and a positive goal exist. They are not estimates.
 | `avg_daily_protein_30d` | g |
 | `workouts_30d` | count |
 | `active_days_30d` | days |
-| `exercise_calories_30d` | kcal |
+| `exercise_calories_30d` | calories reported by the SparkyFitness exercise trend | kcal |
 | `avg_mood_30d` | 1–10 |
 | `avg_sleep_duration_30d` | h |
 | `avg_sleep_score_30d` | score |
@@ -99,6 +99,10 @@ binary_sensor.<account>_<habit_name>
 It is on when the habit is explicitly completed today, off when explicitly
 missed or not logged, and unavailable when today's history request failed.
 Attributes distinguish an unlogged day from a failed request.
+
+The habit catalog is cached for at most one hour. Calling
+`sparkyfitness.refresh` invalidates that cache and immediately discovers habits
+created outside Home Assistant.
 
 The following per-habit sensors are disabled by default:
 
