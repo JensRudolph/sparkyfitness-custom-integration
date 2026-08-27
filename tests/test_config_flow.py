@@ -172,6 +172,7 @@ async def test_reauthentication_updates_only_the_api_key(hass) -> None:
             "custom_components.sparkyfitness.config_flow.SparkyFitnessMcpClient.async_disconnect",
             new=AsyncMock(),
         ),
+        patch.object(hass.config_entries, "async_schedule_reload") as schedule_reload,
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
@@ -190,6 +191,7 @@ async def test_reauthentication_updates_only_the_api_key(hass) -> None:
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_API_KEY] == "new-key"
     assert entry.data[CONF_URL] == "https://sparky.example.com/mcp"
+    schedule_reload.assert_called_once_with(entry.entry_id)
 
 
 async def test_options_flow(hass) -> None:
@@ -249,6 +251,7 @@ async def test_reconfigure_updates_endpoint_tls_and_title(hass) -> None:
             "custom_components.sparkyfitness.config_flow.SparkyFitnessMcpClient.async_disconnect",
             new=AsyncMock(),
         ),
+        patch.object(hass.config_entries, "async_schedule_reload") as schedule_reload,
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
@@ -269,3 +272,4 @@ async def test_reconfigure_updates_endpoint_tls_and_title(hass) -> None:
     assert entry.data[CONF_API_KEY] == "private-key"
     assert entry.options[CONF_VERIFY_SSL] is False
     assert entry.title == "Jens · new.example.com"
+    schedule_reload.assert_called_once_with(entry.entry_id)
